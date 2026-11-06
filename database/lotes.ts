@@ -1,4 +1,5 @@
 // database/lotes.ts — Capa de persistencia SQLite para Lotes agrícolas
+import { Platform } from 'react-native';
 import { getDB } from './local';
 import type { Lote, EstadoLote } from '@/types/domain';
 
@@ -21,6 +22,7 @@ export interface CrearLoteDTO {
  * Crea un nuevo lote agrícola en la BD local.
  */
 export async function crearLote(input: CrearLoteDTO): Promise<Lote> {
+  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
   const db = await getDB();
   const id = generarUUID();
   const nombre = input.nombre.trim();
@@ -45,6 +47,7 @@ export async function crearLote(input: CrearLoteDTO): Promise<Lote> {
  * Obtiene los lotes registrados.
  */
 export async function obtenerLotes(soloActivos: boolean = true): Promise<Lote[]> {
+  if (Platform.OS === 'web') return [];
   const db = await getDB();
   let query = `SELECT * FROM lotes`;
   if (soloActivos) {
@@ -58,6 +61,7 @@ export async function obtenerLotes(soloActivos: boolean = true): Promise<Lote[]>
  * Obtiene un lote por su ID.
  */
 export async function obtenerLotePorId(id: string): Promise<Lote | null> {
+  if (Platform.OS === 'web') return null;
   const db = await getDB();
   const row = await db.getFirstAsync<Lote>(`SELECT * FROM lotes WHERE id = ?;`, [id]);
   return row || null;
@@ -67,6 +71,7 @@ export async function obtenerLotePorId(id: string): Promise<Lote | null> {
  * Actualiza la información de un lote.
  */
 export async function actualizarLote(id: string, input: Partial<CrearLoteDTO>): Promise<Lote> {
+  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
   const db = await getDB();
   const actual = await obtenerLotePorId(id);
   if (!actual) {
@@ -93,6 +98,7 @@ export async function actualizarLote(id: string, input: Partial<CrearLoteDTO>): 
  * Cambia el estado del lote a 'cerrado'.
  */
 export async function cerrarLote(id: string): Promise<void> {
+  if (Platform.OS === 'web') return;
   const db = await getDB();
   await db.runAsync(
     `UPDATE lotes SET estado = 'cerrado', synced = 0 WHERE id = ?;`,

@@ -1,4 +1,5 @@
 // database/trabajadores.ts — Capa de persistencia SQLite para Trabajadores
+import { Platform } from 'react-native';
 import { getDB } from './local';
 import type { Trabajador, CrearTrabajadorDTO } from '@/types/domain';
 
@@ -17,6 +18,7 @@ function generarUUID(): string {
  * Crea un nuevo trabajador en SQLite.
  */
 export async function crearTrabajador(input: CrearTrabajadorDTO): Promise<Trabajador> {
+  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
   const db = await getDB();
   const id = generarUUID();
   const nombre = input.nombre.trim();
@@ -45,6 +47,7 @@ export async function crearTrabajador(input: CrearTrabajadorDTO): Promise<Trabaj
  * @param soloActivos Si es true (default), solo retorna los trabajadores activos.
  */
 export async function obtenerTrabajadores(soloActivos: boolean = true): Promise<Trabajador[]> {
+  if (Platform.OS === 'web') return [];
   const db = await getDB();
   let query = `SELECT * FROM trabajadores`;
   const params: any[] = [];
@@ -61,6 +64,7 @@ export async function obtenerTrabajadores(soloActivos: boolean = true): Promise<
  * Obtiene un trabajador por su ID.
  */
 export async function obtenerTrabajadorPorId(id: string): Promise<Trabajador | null> {
+  if (Platform.OS === 'web') return null;
   const db = await getDB();
   const row = await db.getFirstAsync<Trabajador>(
     `SELECT * FROM trabajadores WHERE id = ?;`,
@@ -76,6 +80,7 @@ export async function actualizarTrabajador(
   id: string,
   input: Partial<CrearTrabajadorDTO> & { dominical?: number }
 ): Promise<Trabajador> {
+  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
   const db = await getDB();
   const actual = await obtenerTrabajadorPorId(id);
   if (!actual) {
@@ -101,6 +106,7 @@ export async function actualizarTrabajador(
  * Realiza un borrado lógico (soft-delete) desactivando al trabajador (`activo = 0`).
  */
 export async function desactivarTrabajador(id: string): Promise<void> {
+  if (Platform.OS === 'web') return;
   const db = await getDB();
   await db.runAsync(
     `UPDATE trabajadores SET activo = 0, synced = 0 WHERE id = ?;`,
@@ -112,6 +118,7 @@ export async function desactivarTrabajador(id: string): Promise<void> {
  * Reactiva un trabajador previamente desactivado.
  */
 export async function activarTrabajador(id: string): Promise<void> {
+  if (Platform.OS === 'web') return;
   const db = await getDB();
   await db.runAsync(
     `UPDATE trabajadores SET activo = 1, synced = 0 WHERE id = ?;`,

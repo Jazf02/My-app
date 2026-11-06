@@ -3,6 +3,7 @@
 // Sin Supabase. Sin internet. 100% offline-first.
 // ═══════════════════════════════════════════════════════════
 
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getDB } from '@/database/local';
 
@@ -11,6 +12,7 @@ const KEY_PIN = 'agrogamez_pin_acceso';
 
 /** Crea la tabla de configuración si no existe. */
 async function initConfigTable(): Promise<void> {
+  if (Platform.OS === 'web') return;
   try {
     const db = await getDB();
     await db.execAsync(`
@@ -27,6 +29,7 @@ async function initConfigTable(): Promise<void> {
 /** Guarda un valor en la tabla de configuración y en AsyncStorage. */
 async function setConfig(clave: string, valor: string): Promise<void> {
   await AsyncStorage.setItem(clave, valor);
+  if (Platform.OS === 'web') return;
   try {
     await initConfigTable();
     const db = await getDB();
@@ -46,6 +49,7 @@ async function getConfig(clave: string): Promise<string | null> {
   if (cached !== null) {
     return cached;
   }
+  if (Platform.OS === 'web') return null;
   try {
     await initConfigTable();
     const db = await getDB();
@@ -96,6 +100,7 @@ export async function verificarPin(pin: string): Promise<boolean> {
  */
 export async function borrarPin(): Promise<void> {
   await AsyncStorage.removeItem(KEY_PIN);
+  if (Platform.OS === 'web') return;
   try {
     const db = await getDB();
     await db.runAsync(`DELETE FROM ${TABLA_CONFIG} WHERE clave = ?;`, [KEY_PIN]);

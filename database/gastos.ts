@@ -1,4 +1,5 @@
 // database/gastos.ts — Capa de persistencia SQLite para Gastos e Insumos operativos
+import { Platform } from 'react-native';
 import { getDB } from './local';
 import { hoyISO } from '@/lib/fechas';
 import type { Gasto, CategoriaGasto } from '@/types/domain';
@@ -23,6 +24,7 @@ export interface CrearGastoDTO {
  * Registra un nuevo gasto u orden de insumos en SQLite.
  */
 export async function registrarGasto(input: CrearGastoDTO): Promise<Gasto> {
+  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
   const db = await getDB();
   const id = generarUUID();
   const fecha = input.fecha || hoyISO();
@@ -52,6 +54,7 @@ export async function obtenerGastos(filtro?: {
   fecha_inicio?: string;
   fecha_fin?: string;
 }): Promise<Gasto[]> {
+  if (Platform.OS === 'web') return [];
   const db = await getDB();
   let query = `SELECT * FROM gastos WHERE 1=1`;
   const params: any[] = [];
@@ -77,6 +80,7 @@ export async function obtenerGastos(filtro?: {
  * Obtiene el total suma acumulado de gastos (opcionalmente filtrado por lote).
  */
 export async function obtenerTotalGastos(loteId?: string): Promise<number> {
+  if (Platform.OS === 'web') return 0;
   const db = await getDB();
   let query = `SELECT SUM(monto) as total FROM gastos`;
   const params: any[] = [];
@@ -94,6 +98,7 @@ export async function obtenerTotalGastos(loteId?: string): Promise<number> {
  * Elimina un gasto por su ID.
  */
 export async function eliminarGasto(id: string): Promise<void> {
+  if (Platform.OS === 'web') return;
   const db = await getDB();
   await db.runAsync(`DELETE FROM gastos WHERE id = ?;`, [id]);
 }

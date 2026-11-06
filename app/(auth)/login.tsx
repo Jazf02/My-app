@@ -49,9 +49,13 @@ export default function LoginScreen(): React.JSX.Element {
   };
 
   const handleDescargarApk = (): void => {
-    const supabaseUrl =
-      process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co';
-    const apkUrl = `${supabaseUrl}/storage/v1/object/public/apps/agrogamez.apk`;
+    const directUrl = process.env.EXPO_PUBLIC_APK_DOWNLOAD_URL;
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+    const defaultStorageUrl =
+      supabaseUrl && !supabaseUrl.includes('placeholder')
+        ? `${supabaseUrl}/storage/v1/object/public/apps/agrogamez.apk`
+        : 'https://expo.dev/artifacts/eas/wT688ZiNAXKY4oQT3er_PF68VKoHSWRJzGUMw88-WfQ.apk';
+    const apkUrl = directUrl || defaultStorageUrl;
 
     if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.open(apkUrl, '_blank');

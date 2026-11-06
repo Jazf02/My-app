@@ -16,6 +16,7 @@ expo-env.d.ts
 # Native builds
 android/
 ios/
+*.apk
 
 # EAS
 .easignore

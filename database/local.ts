@@ -3,6 +3,7 @@
 // Offline-first: inicialización, migraciones y singleton de BD
 // ═══════════════════════════════════════════════════════════
 
+import { Platform } from 'react-native';
 import * as SQLite from 'expo-sqlite';
 
 // Nombre del archivo de base de datos
@@ -16,6 +17,10 @@ let _db: SQLite.SQLiteDatabase | null = null;
  * Habilita WAL mode y foreign keys en cada apertura.
  */
 export async function getDB(): Promise<SQLite.SQLiteDatabase> {
+  if (Platform.OS === 'web') {
+    throw new Error('SQLite no está disponible en la plataforma web.');
+  }
+
   if (_db !== null) {
     return _db;
   }
@@ -152,6 +157,12 @@ async function migrarEsquema(db: SQLite.SQLiteDatabase): Promise<void> {
  * Se llama al arrancar la app. Es idempotente (IF NOT EXISTS).
  */
 export async function initTables(): Promise<void> {
+  // En web, expo-sqlite usa OPFS+SharedArrayBuffer que no está disponible
+  // en el servidor de desarrollo. Los datos en web se gestionan via Supabase.
+  if (Platform.OS === 'web') {
+    return;
+  }
+
   const db = await getDB();
 
   await db.execAsync(`
@@ -306,6 +317,7 @@ export async function initTables(): Promise<void> {
  * Útil antes de un restore.
  */
 export async function closeDB(): Promise<void> {
+  if (Platform.OS === 'web') return;
   if (_db !== null) {
     await _db.closeAsync();
     _db = null;
@@ -317,6 +329,7 @@ export async function closeDB(): Promise<void> {
  * Devuelve true si PRAGMA integrity_check retorna "ok".
  */
 export async function checkIntegrity(): Promise<boolean> {
+  if (Platform.OS === 'web') return true;
   const db = await getDB();
   const result = await db.getFirstAsync<{ integrity_check: string }>(
     'PRAGMA integrity_check;'
@@ -329,6 +342,7 @@ export async function checkIntegrity(): Promise<boolean> {
  * Útil para tests y diagnóstico.
  */
 export async function getTableNames(): Promise<string[]> {
+  if (Platform.OS === 'web') return [];
   const db = await getDB();
   const rows = await db.getAllAsync<{ name: string }>(
     "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name;"
