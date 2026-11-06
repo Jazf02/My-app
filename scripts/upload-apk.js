@@ -92,3 +92,4 @@ main().catch((err) => {
   console.error('❌ Error fatal:', err);
   process.exit(1);
 });
+

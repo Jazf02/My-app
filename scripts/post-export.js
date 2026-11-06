@@ -18,3 +18,4 @@ if (fs.existsSync(indexPath)) {
     console.log('✅ [PWA] Etiquetas de manifest e instalación inyectadas en dist/index.html');
   }
 }
+

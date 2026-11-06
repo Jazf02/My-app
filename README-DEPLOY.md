@@ -64,3 +64,4 @@ En la pantalla de acceso (Login), los usuarios en versión web verán un botón 
 
 Este botón apunta directamente a la URL pública de Supabase Storage:
 `https://<TU-PROYECTO>.supabase.co/storage/v1/object/public/apps/agrogamez.apk`
+

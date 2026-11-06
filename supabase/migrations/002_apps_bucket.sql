@@ -21,3 +21,4 @@ CREATE POLICY "Authenticated Upload APK" ON storage.objects
 CREATE POLICY "Authenticated Update APK" ON storage.objects
   FOR UPDATE
   USING (bucket_id = 'apps' AND auth.role() = 'authenticated');
+
