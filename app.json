@@ -1,25 +1,71 @@
 {
   "expo": {
-    "name": "agrogamez",
+    "name": "AgroGámez",
     "slug": "agrogamez",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "ios": {
-      "supportsTablet": true
-    },
-    "android": {
-      "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
+    "scheme": "agrogamez",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2E7D32"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.agrogamez.app",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false
+        }
+      }
+    },
+    "android": {
+      "package": "com.agrogamez.app",
+      "versionCode": 1,
+      "minSdkVersion": 24,
+      "targetSdkVersion": 34,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#2E7D32"
+      },
+      "permissions": [
+        "android.permission.INTERNET"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": false,
+          "useSQLCipher": false,
+          "android": {
+            "enablePackagingOptions": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "0be2aad8-317d-466c-a778-3221ff36475d"
+      }
+    },
+    "owner": "jazeth002"
   }
 }

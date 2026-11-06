@@ -1,0 +1,5 @@
+-- database/migrations/ — Directorio reservado para migraciones futuras
+-- Las migraciones se agregan aquí con formato:
+--   001_nombre.sql
+--   002_nombre.sql
+-- etc.

@@ -1,0 +1,26 @@
+{
+  "short_name": "AgroGámez",
+  "name": "AgroGámez - Sistema Agrícola",
+  "description": "Sistema de gestión agrícola, asistencia, nómina y cosechas offline.",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#2E7D32",
+  "theme_color": "#2E7D32",
+  "display": "standalone",
+  "orientation": "portrait",
+  "scope": "/"
+}
+
