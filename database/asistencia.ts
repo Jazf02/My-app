@@ -4,6 +4,24 @@ import { getDB } from './local';
 import { lunesDeSemana, domingoDeSemana, hoyISO } from '@/lib/fechas';
 import { calcularPagoSemanal, type ResultadoPagoSemanal } from '@/lib/calculos';
 import type { Semana, DiaTrabajado, Adelanto, CrearAdelantoDTO, Trabajador } from '@/types/domain';
+import {
+  webObtenerOCrearSemanaParaFecha,
+  webObtenerSemanaPorId,
+  webObtenerSemanas,
+  webCerrarSemana,
+  webMarcarSemanaComoPagada,
+  webReabrirSemana,
+  webGuardarPeriodoCerrado,
+  webObtenerPeriodosCerrados,
+  webMarcarAsistencia,
+  webObtenerAsistenciaSemanal,
+  webRegistrarAdelanto,
+  webObtenerAdelantosSemana,
+  webEliminarAdelanto,
+  webObtenerResumenTrabajadorSemana,
+  webRevertirAdelanto,
+  webObtenerMetricasPeriodo,
+} from './webStorage';
 
 function generarUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -17,7 +35,7 @@ function generarUUID(): string {
  * Obtiene o crea la semana de pago que corresponde a la fecha dada (YYYY-MM-DD).
  */
 export async function obtenerOCrearSemanaParaFecha(fechaISO: string): Promise<Semana> {
-  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
+  if (Platform.OS === 'web') return webObtenerOCrearSemanaParaFecha(fechaISO);
   const db = await getDB();
   const fechaObj = new Date(fechaISO + 'T00:00:00');
   const fechaInicio = lunesDeSemana(fechaObj);
@@ -59,7 +77,7 @@ export async function obtenerOCrearSemanaActual(): Promise<Semana> {
  * Obtiene una semana por su ID.
  */
 export async function obtenerSemanaPorId(id: string): Promise<Semana | null> {
-  if (Platform.OS === 'web') return null;
+  if (Platform.OS === 'web') return webObtenerSemanaPorId(id);
   const db = await getDB();
   const row = await db.getFirstAsync<Semana>(
     `SELECT * FROM semanas WHERE id = ?;`,
@@ -72,7 +90,7 @@ export async function obtenerSemanaPorId(id: string): Promise<Semana | null> {
  * Lista todas las semanas registradas ordenadas descendentemente por fecha.
  */
 export async function obtenerSemanas(limite: number = 20): Promise<Semana[]> {
-  if (Platform.OS === 'web') return [];
+  if (Platform.OS === 'web') return webObtenerSemanas(limite);
   const db = await getDB();
   return await db.getAllAsync<Semana>(
     `SELECT * FROM semanas ORDER BY fecha_inicio DESC LIMIT ?;`,
@@ -85,7 +103,7 @@ export async function obtenerSemanas(limite: number = 20): Promise<Semana[]> {
  * MEJORA 10: solo funciona si la semana está 'abierta'.
  */
 export async function cerrarSemana(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webCerrarSemana(id);
   const db = await getDB();
   const semana = await db.getFirstAsync<{ estado: string }>(
     `SELECT estado FROM semanas WHERE id = ?;`,
@@ -104,7 +122,7 @@ export async function cerrarSemana(id: string): Promise<void> {
  * Marca una semana cerrada como pagada (cerrada → pagada).
  */
 export async function marcarSemanaComoPagada(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webMarcarSemanaComoPagada(id);
   const db = await getDB();
   const semana = await db.getFirstAsync<{ estado: string }>(
     `SELECT estado FROM semanas WHERE id = ?;`,
@@ -123,7 +141,7 @@ export async function marcarSemanaComoPagada(id: string): Promise<void> {
  * Reabre una semana cerrada o pagada (vuelve a 'abierta').
  */
 export async function reabrirSemana(id: string, motivo?: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webReabrirSemana(id);
   const db = await getDB();
   await db.runAsync(
     `UPDATE semanas SET estado = 'abierta', reabierta_en = datetime('now'), reabierta_motivo = ?, synced = 0 WHERE id = ?;`,
@@ -145,7 +163,7 @@ export async function guardarPeriodoCerrado(input: {
   adelantos: number;
   neto: number;
 }): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webGuardarPeriodoCerrado(input);
   const db = await getDB();
   const id = generarUUID();
   await db.runAsync(
@@ -177,7 +195,7 @@ export interface PeriodoCerrado {
  * Obtiene todos los periodos cerrados ordenados por fecha descendente.
  */
 export async function obtenerPeriodosCerrados(): Promise<PeriodoCerrado[]> {
-  if (Platform.OS === 'web') return [];
+  if (Platform.OS === 'web') return webObtenerPeriodosCerrados();
   const db = await getDB();
   return await db.getAllAsync<PeriodoCerrado>(
     `SELECT * FROM periodos_cerrados ORDER BY fecha_inicio DESC;`
@@ -194,7 +212,7 @@ export async function marcarAsistencia(input: {
   presente: boolean;
   tarifaDiariaOverride?: number | null;
 }): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webMarcarAsistencia(input);
   const db = await getDB();
   const id = generarUUID();
   const presenteInt = input.presente ? 1 : 0;
@@ -218,7 +236,7 @@ export async function obtenerAsistenciaSemanal(
   semanaId: string,
   trabajadorId?: string
 ): Promise<DiaTrabajado[]> {
-  if (Platform.OS === 'web') return [];
+  if (Platform.OS === 'web') return webObtenerAsistenciaSemanal(semanaId, trabajadorId);
   const db = await getDB();
   if (trabajadorId) {
     return await db.getAllAsync<DiaTrabajado>(
@@ -236,7 +254,7 @@ export async function obtenerAsistenciaSemanal(
  * Registra un adelanto de dinero otorgado a un trabajador.
  */
 export async function registrarAdelanto(input: CrearAdelantoDTO): Promise<Adelanto> {
-  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
+  if (Platform.OS === 'web') return webRegistrarAdelanto(input);
   const db = await getDB();
   const id = generarUUID();
   const fecha = input.fecha || hoyISO();
@@ -262,7 +280,7 @@ export async function obtenerAdelantosSemana(
   semanaId: string,
   trabajadorId?: string
 ): Promise<Adelanto[]> {
-  if (Platform.OS === 'web') return [];
+  if (Platform.OS === 'web') return webObtenerAdelantosSemana(semanaId, trabajadorId);
   const db = await getDB();
   if (trabajadorId) {
     return await db.getAllAsync<Adelanto>(
@@ -280,7 +298,7 @@ export async function obtenerAdelantosSemana(
  * Elimina un adelanto por su ID.
  */
 export async function eliminarAdelanto(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webEliminarAdelanto(id);
   const db = await getDB();
   await db.runAsync(`DELETE FROM adelantos WHERE id = ?;`, [id]);
 }
@@ -299,7 +317,7 @@ export async function obtenerResumenTrabajadorSemana(
 }
 
 export async function revertirAdelanto(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webRevertirAdelanto(id);
   const db = await getDB();
   await db.runAsync(`UPDATE adelantos SET revertido = 1, synced = 0 WHERE id = ?;`, [id]);
 }
@@ -328,17 +346,7 @@ export async function obtenerMetricasPeriodo(
   fechaInicio: string,
   fechaFin: string
 ): Promise<MetricasPeriodo> {
-  if (Platform.OS === 'web') {
-    return {
-      nominaTotal: 0,
-      trabajadoresPresentes: 0,
-      cajasCortadas: 0,
-      cajasEmpacadas: 0,
-      cajasDescarte: 0,
-      porcentajeAprovechable: 0,
-      porTrabajador: [],
-    };
-  }
+  if (Platform.OS === 'web') return webObtenerMetricasPeriodo(fechaInicio, fechaFin);
   const db = await getDB();
 
   // Asistencia agrupada por trabajador

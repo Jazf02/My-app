@@ -3,6 +3,12 @@ import { Platform } from 'react-native';
 import { getDB } from './local';
 import { hoyISO } from '@/lib/fechas';
 import type { Gasto, CategoriaGasto } from '@/types/domain';
+import {
+  webRegistrarGasto,
+  webObtenerGastos,
+  webObtenerTotalGastos,
+  webEliminarGasto,
+} from './webStorage';
 
 function generarUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -24,7 +30,7 @@ export interface CrearGastoDTO {
  * Registra un nuevo gasto u orden de insumos en SQLite.
  */
 export async function registrarGasto(input: CrearGastoDTO): Promise<Gasto> {
-  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
+  if (Platform.OS === 'web') return webRegistrarGasto(input);
   const db = await getDB();
   const id = generarUUID();
   const fecha = input.fecha || hoyISO();
@@ -54,7 +60,7 @@ export async function obtenerGastos(filtro?: {
   fecha_inicio?: string;
   fecha_fin?: string;
 }): Promise<Gasto[]> {
-  if (Platform.OS === 'web') return [];
+  if (Platform.OS === 'web') return webObtenerGastos(filtro);
   const db = await getDB();
   let query = `SELECT * FROM gastos WHERE 1=1`;
   const params: any[] = [];
@@ -80,7 +86,7 @@ export async function obtenerGastos(filtro?: {
  * Obtiene el total suma acumulado de gastos (opcionalmente filtrado por lote).
  */
 export async function obtenerTotalGastos(loteId?: string): Promise<number> {
-  if (Platform.OS === 'web') return 0;
+  if (Platform.OS === 'web') return webObtenerTotalGastos(loteId);
   const db = await getDB();
   let query = `SELECT SUM(monto) as total FROM gastos`;
   const params: any[] = [];
@@ -98,7 +104,7 @@ export async function obtenerTotalGastos(loteId?: string): Promise<number> {
  * Elimina un gasto por su ID.
  */
 export async function eliminarGasto(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webEliminarGasto(id);
   const db = await getDB();
   await db.runAsync(`DELETE FROM gastos WHERE id = ?;`, [id]);
 }

@@ -2,6 +2,14 @@ import { Platform } from 'react-native';
 import { getDB } from './local';
 import { hoyISO, lunesDeSemana, domingoDeSemana } from '@/lib/fechas';
 import type { Cosecha, ResumenCosecha } from '@/types/domain';
+import {
+  webRegistrarCosecha,
+  webObtenerCosechasPorLote,
+  webObtenerResumenCosechaLote,
+  webEliminarCosecha,
+  webObtenerResumenCosechasRango,
+  webObtenerAcumuladosCosecha,
+} from './webStorage';
 
 function generarUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -23,7 +31,7 @@ export interface CrearCosechaDTO {
  * Registra una recolección de cosecha para un lote.
  */
 export async function registrarCosecha(input: CrearCosechaDTO): Promise<Cosecha> {
-  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
+  if (Platform.OS === 'web') return webRegistrarCosecha(input);
   const db = await getDB();
   const id = generarUUID();
   const fecha = input.fecha || hoyISO();
@@ -51,7 +59,7 @@ export async function registrarCosecha(input: CrearCosechaDTO): Promise<Cosecha>
  * Obtiene todas las cosechas asociadas a un lote específico.
  */
 export async function obtenerCosechasPorLote(loteId: string): Promise<Cosecha[]> {
-  if (Platform.OS === 'web') return [];
+  if (Platform.OS === 'web') return webObtenerCosechasPorLote(loteId);
   const db = await getDB();
   return await db.getAllAsync<Cosecha>(
     `SELECT * FROM cosechas WHERE lote_id = ? ORDER BY fecha DESC;`,
@@ -63,7 +71,7 @@ export async function obtenerCosechasPorLote(loteId: string): Promise<Cosecha[]>
  * Obtiene el resumen total acumulado de producción para un lote.
  */
 export async function obtenerResumenCosechaLote(loteId: string): Promise<ResumenCosecha> {
-  if (Platform.OS === 'web') return { totalCortadas: 0, totalDescarte: 0, totalEmpacadas: 0 };
+  if (Platform.OS === 'web') return webObtenerResumenCosechaLote(loteId);
   const db = await getDB();
   const result = await db.getFirstAsync<{
     totalCortadas: number | null;
@@ -90,7 +98,7 @@ export async function obtenerResumenCosechaLote(loteId: string): Promise<Resumen
  * Elimina un registro de cosecha.
  */
 export async function eliminarCosecha(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webEliminarCosecha(id);
   const db = await getDB();
   await db.runAsync(`DELETE FROM cosechas WHERE id = ?;`, [id]);
 }
@@ -102,7 +110,7 @@ export async function obtenerResumenCosechasRango(
   fechaInicio: string,
   fechaFin: string
 ): Promise<ResumenCosecha> {
-  if (Platform.OS === 'web') return { totalCortadas: 0, totalDescarte: 0, totalEmpacadas: 0 };
+  if (Platform.OS === 'web') return webObtenerResumenCosechasRango(fechaInicio, fechaFin);
   const db = await getDB();
   const result = await db.getFirstAsync<{
     totalCortadas: number | null;
@@ -133,7 +141,7 @@ export async function obtenerAcumuladosCosecha(): Promise<{
   esteMes: number;
   esteAno: number;
 }> {
-  if (Platform.OS === 'web') return { estaSemana: 0, esteMes: 0, esteAno: 0 };
+  if (Platform.OS === 'web') return webObtenerAcumuladosCosecha();
   const db = await getDB();
   const hoy = new Date();
   const inicioSemana = lunesDeSemana(hoy);

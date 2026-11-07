@@ -2,6 +2,13 @@
 import { Platform } from 'react-native';
 import { getDB } from './local';
 import type { Lote, EstadoLote } from '@/types/domain';
+import {
+  webCrearLote,
+  webObtenerLotes,
+  webObtenerLotePorId,
+  webActualizarLote,
+  webCerrarLote,
+} from './webStorage';
 
 function generarUUID(): string {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
@@ -22,7 +29,7 @@ export interface CrearLoteDTO {
  * Crea un nuevo lote agrícola en la BD local.
  */
 export async function crearLote(input: CrearLoteDTO): Promise<Lote> {
-  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
+  if (Platform.OS === 'web') return webCrearLote(input);
   const db = await getDB();
   const id = generarUUID();
   const nombre = input.nombre.trim();
@@ -47,7 +54,7 @@ export async function crearLote(input: CrearLoteDTO): Promise<Lote> {
  * Obtiene los lotes registrados.
  */
 export async function obtenerLotes(soloActivos: boolean = true): Promise<Lote[]> {
-  if (Platform.OS === 'web') return [];
+  if (Platform.OS === 'web') return webObtenerLotes(soloActivos);
   const db = await getDB();
   let query = `SELECT * FROM lotes`;
   if (soloActivos) {
@@ -61,7 +68,7 @@ export async function obtenerLotes(soloActivos: boolean = true): Promise<Lote[]>
  * Obtiene un lote por su ID.
  */
 export async function obtenerLotePorId(id: string): Promise<Lote | null> {
-  if (Platform.OS === 'web') return null;
+  if (Platform.OS === 'web') return webObtenerLotePorId(id);
   const db = await getDB();
   const row = await db.getFirstAsync<Lote>(`SELECT * FROM lotes WHERE id = ?;`, [id]);
   return row || null;
@@ -71,7 +78,7 @@ export async function obtenerLotePorId(id: string): Promise<Lote | null> {
  * Actualiza la información de un lote.
  */
 export async function actualizarLote(id: string, input: Partial<CrearLoteDTO>): Promise<Lote> {
-  if (Platform.OS === 'web') throw new Error('SQLite no disponible en web.');
+  if (Platform.OS === 'web') return webActualizarLote(id, input);
   const db = await getDB();
   const actual = await obtenerLotePorId(id);
   if (!actual) {
@@ -98,7 +105,7 @@ export async function actualizarLote(id: string, input: Partial<CrearLoteDTO>): 
  * Cambia el estado del lote a 'cerrado'.
  */
 export async function cerrarLote(id: string): Promise<void> {
-  if (Platform.OS === 'web') return;
+  if (Platform.OS === 'web') return webCerrarLote(id);
   const db = await getDB();
   await db.runAsync(
     `UPDATE lotes SET estado = 'cerrado', synced = 0 WHERE id = ?;`,
