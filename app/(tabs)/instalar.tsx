@@ -35,7 +35,7 @@ export default function InstalarScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <BannerEstado estado="offline" />
+      <BannerEstado />
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.card}>
           <Text style={styles.titulo}>📲 Descargar e Instalar en Celular</Text>

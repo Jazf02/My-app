@@ -166,7 +166,7 @@ export default function ExportarScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <BannerEstado estado="offline" />
+      <BannerEstado />
 
       {/* Header */}
       <View style={styles.header}>

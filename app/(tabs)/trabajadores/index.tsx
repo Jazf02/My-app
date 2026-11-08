@@ -188,7 +188,7 @@ export default function TrabajadoresScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <BannerEstado estado="offline" />
+      <BannerEstado />
 
       {/* Encabezado */}
       <View style={styles.header}>

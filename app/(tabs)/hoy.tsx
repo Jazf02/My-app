@@ -363,7 +363,7 @@ export default function HoyScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <BannerEstado estado="offline" />
+      <BannerEstado />
 
       {/* Cabecera de Calendario con Navegación de Mes/Semana (MEJORA 1) */}
       <View style={styles.headerCalendario}>

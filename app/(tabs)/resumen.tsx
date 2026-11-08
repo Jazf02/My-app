@@ -143,7 +143,7 @@ export default function ResumenScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <BannerEstado estado="offline" />
+      <BannerEstado />
 
       {/* Header Selector de Periodo */}
       <View style={styles.header}>

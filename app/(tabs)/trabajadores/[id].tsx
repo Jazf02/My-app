@@ -120,7 +120,7 @@ export default function TrabajadorDetalleScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={s.safe}>
-      <BannerEstado estado="offline" />
+      <BannerEstado />
       <View style={s.header}>
         <Pressable style={s.btnVolver} onPress={() => router.back()} hitSlop={10}><Text style={s.btnVolverTexto}>Volver</Text></Pressable>
         <Text style={s.headerTitulo} numberOfLines={1}>{trabajador.nombre}</Text>
