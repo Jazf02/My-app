@@ -3,7 +3,7 @@
 // MEJORA 2: Pantalla Resumen con métricas HOY, SEMANA, MES, AÑO
 // ═══════════════════════════════════════════════════════════
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { BannerEstado } from '@/components/ui/BannerEstado';
+import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
 import {
   obtenerMetricasPeriodo,
   type MetricasPeriodo,
@@ -120,8 +121,16 @@ export default function ResumenScreen(): React.JSX.Element {
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
+      ejecutarSincronizacion().catch(() => {});
     }, [cargarDatos])
   );
+
+  useEffect(() => {
+    const unsub = suscribirSyncCompletado(() => {
+      cargarDatos();
+    });
+    return unsub;
+  }, [cargarDatos]);
 
   const cambiarPeriodoOffset = (offset: number) => {
     const d = new Date(fechaReferencia + 'T00:00:00');

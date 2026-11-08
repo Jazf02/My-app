@@ -3,7 +3,7 @@
 // 100% Offline-First con persistencia directa en SQLite
 // ═══════════════════════════════════════════════════════════
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -27,6 +27,7 @@ import {
   activarTrabajador,
   eliminarTrabajador,
 } from '@/database/trabajadores';
+import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
 import { formatearMoneda } from '@/lib/fechas';
 import type { Trabajador } from '@/types/domain';
 
@@ -60,8 +61,16 @@ export default function TrabajadoresScreen(): React.JSX.Element {
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
+      ejecutarSincronizacion().catch(() => {});
     }, [cargarDatos])
   );
+
+  useEffect(() => {
+    const unsub = suscribirSyncCompletado(() => {
+      cargarDatos();
+    });
+    return unsub;
+  }, [cargarDatos]);
 
   const abrirModalCrear = () => {
     setTrabajadorEditando(null);
@@ -108,6 +117,7 @@ export default function TrabajadoresScreen(): React.JSX.Element {
 
       setModalVisible(false);
       await cargarDatos();
+      ejecutarSincronizacion().catch(() => {});
     } catch (err: unknown) {
       setErrorForm(err instanceof Error ? err.message : 'Error al guardar.');
     } finally {
@@ -128,14 +138,16 @@ export default function TrabajadoresScreen(): React.JSX.Element {
               style: 'destructive',
               onPress: async () => {
                 await desactivarTrabajador(t.id);
-                cargarDatos();
+                await cargarDatos();
+                ejecutarSincronizacion().catch(() => {});
               },
             },
           ]
         );
       } else {
         await activarTrabajador(t.id);
-        cargarDatos();
+        await cargarDatos();
+        ejecutarSincronizacion().catch(() => {});
       }
     } catch (err) {
       console.error('[Trabajadores] Error al cambiar estado:', err);
@@ -149,9 +161,10 @@ export default function TrabajadoresScreen(): React.JSX.Element {
       );
       if (confirma) {
         eliminarTrabajador(t.id)
-          .then(() => {
+          .then(async () => {
             if (modalVisible) setModalVisible(false);
-            cargarDatos();
+            await cargarDatos();
+            ejecutarSincronizacion().catch(() => {});
           })
           .catch((err) => {
             Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo eliminar el trabajador.');
@@ -172,7 +185,8 @@ export default function TrabajadoresScreen(): React.JSX.Element {
             try {
               await eliminarTrabajador(t.id);
               if (modalVisible) setModalVisible(false);
-              cargarDatos();
+              await cargarDatos();
+              ejecutarSincronizacion().catch(() => {});
             } catch (err) {
               Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo eliminar el trabajador.');
             }

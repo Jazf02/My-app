@@ -8,7 +8,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -31,6 +31,7 @@ import {
   obtenerAsistenciaSemanal,
   marcarAsistencia,
 } from '@/database/asistencia';
+import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
 import {
   hoyISO,
   fechaToISO,
@@ -107,8 +108,16 @@ export default function HoyScreen(): React.JSX.Element {
   useFocusEffect(
     useCallback(() => {
       cargarDatos(fechaSeleccionada);
+      ejecutarSincronizacion().catch(() => {});
     }, [cargarDatos, fechaSeleccionada])
   );
+
+  useEffect(() => {
+    const unsub = suscribirSyncCompletado(() => {
+      cargarDatos(fechaSeleccionada);
+    });
+    return unsub;
+  }, [cargarDatos, fechaSeleccionada]);
 
   // Cálculo de si el día seleccionado es Domingo (MEJORA 5)
   const esDomingo = useMemo(() => {
@@ -199,6 +208,7 @@ export default function HoyScreen(): React.JSX.Element {
 
       const actualizadas = await obtenerAsistenciaSemanal(semana.id);
       setAsistencias(actualizadas);
+      ejecutarSincronizacion().catch(() => {});
 
       mostrarUndo(
         `${trabajador.nombre} marcado como ${nuevoEstado ? 'Presente' : 'Ausente'}`,
@@ -238,6 +248,7 @@ export default function HoyScreen(): React.JSX.Element {
       }
       const actualizadas = await obtenerAsistenciaSemanal(semana.id);
       setAsistencias(actualizadas);
+      ejecutarSincronizacion().catch(() => {});
 
       mostrarUndo(
         presente ? 'Todos marcados presentes' : 'Asistencia limpiada',
@@ -301,6 +312,7 @@ export default function HoyScreen(): React.JSX.Element {
       setModalTarifaVisible(false);
       const actualizadas = await obtenerAsistenciaSemanal(semana.id);
       setAsistencias(actualizadas);
+      ejecutarSincronizacion().catch(() => {});
     } catch (err) {
       console.error('[Hoy] Error al guardar tarifa:', err);
     }

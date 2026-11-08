@@ -3,7 +3,7 @@
 // Registro de cortes, cajas empacadas y merma por lote agrícola
 // ═══════════════════════════════════════════════════════════
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -19,6 +19,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BannerEstado } from '@/components/ui/BannerEstado';
+import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
 import { obtenerLotes, crearLote } from '@/database/lotes';
 import {
   registrarCosecha,
@@ -100,8 +101,16 @@ export default function CosechaScreen(): React.JSX.Element {
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
+      ejecutarSincronizacion().catch(() => {});
     }, [cargarDatos])
   );
+
+  useEffect(() => {
+    const unsub = suscribirSyncCompletado(() => {
+      cargarDatos();
+    });
+    return unsub;
+  }, [cargarDatos]);
 
   const handleCrearLote = async () => {
     if (!nombreLoteInput.trim()) {

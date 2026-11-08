@@ -7,12 +7,18 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-// Variables de entorno (definidas en .env)
+// Variables de entorno con credenciales oficiales como respaldo seguro
 const SUPABASE_URL =
-  process.env['EXPO_PUBLIC_SUPABASE_URL'] || 'https://placeholder.supabase.co';
+  process.env['EXPO_PUBLIC_SUPABASE_URL'] &&
+  !process.env['EXPO_PUBLIC_SUPABASE_URL'].includes('placeholder')
+    ? process.env['EXPO_PUBLIC_SUPABASE_URL']
+    : 'https://xsmzhzabgonzjgxakktt.supabase.co';
+
 const SUPABASE_ANON_KEY =
-  process.env['EXPO_PUBLIC_SUPABASE_ANON_KEY'] ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSJ9.placeholder';
+  process.env['EXPO_PUBLIC_SUPABASE_ANON_KEY'] &&
+  !process.env['EXPO_PUBLIC_SUPABASE_ANON_KEY'].includes('placeholder')
+    ? process.env['EXPO_PUBLIC_SUPABASE_ANON_KEY']
+    : 'sb_publishable_2QbpK1fVSnf8sIqfnZdWIA_msYfw-PF';
 
 if (!process.env['EXPO_PUBLIC_SUPABASE_URL']) {
   console.warn(

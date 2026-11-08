@@ -1,5 +1,6 @@
 // database/trabajadores.ts — Capa de persistencia SQLite para Trabajadores
 import { Platform } from 'react-native';
+import { supabase } from '@/lib/supabase';
 import { getDB } from './local';
 import type { Trabajador, CrearTrabajadorDTO } from '@/types/domain';
 import {
@@ -142,6 +143,7 @@ export async function eliminarTrabajador(id: string): Promise<void> {
   await db.runAsync(`DELETE FROM dias_trabajados WHERE trabajador_id = ?;`, [id]);
   await db.runAsync(`DELETE FROM adelantos WHERE trabajador_id = ?;`, [id]);
   await db.runAsync(`DELETE FROM trabajadores WHERE id = ?;`, [id]);
+  Promise.resolve(supabase.from('trabajadores').delete().eq('id', id)).catch(() => {});
 }
 
 /**

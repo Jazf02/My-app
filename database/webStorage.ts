@@ -5,6 +5,7 @@
 
 import { lunesDeSemana, domingoDeSemana, hoyISO } from '@/lib/fechas';
 import { calcularPagoSemanal, type ResultadoPagoSemanal } from '@/lib/calculos';
+import { supabase } from '@/lib/supabase';
 import type {
   Trabajador,
   CrearTrabajadorDTO,
@@ -178,6 +179,9 @@ export async function webEliminarTrabajador(id: string): Promise<void> {
   let adelantos = getList<Adelanto>('adelantos');
   adelantos = adelantos.filter((a) => a.trabajador_id !== id);
   saveList('adelantos', adelantos);
+
+  // Eliminar también de Supabase para evitar que vuelva a aparecer
+  Promise.resolve(supabase.from('trabajadores').delete().eq('id', id)).catch(() => {});
 }
 
 export async function webDesactivarTrabajador(id: string): Promise<void> {
