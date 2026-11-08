@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════
 
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 import type { EstadoSync } from '@/types';
 
 interface BannerEstadoProps {
@@ -54,6 +54,11 @@ export function BannerEstado({ estado = 'offline' }: BannerEstadoProps): React.J
       accessibilityLiveRegion="polite"
       accessibilityLabel={`Estado de sincronización: ${config.label}`}
     >
+      <Image
+        source={require('@/assets/logo.png')}
+        style={styles.logoSmall}
+        accessibilityLabel="Logo AgroGámez"
+      />
       <Text style={[styles.texto, { color: config.color }]}>
         {config.label}
       </Text>
@@ -66,7 +71,15 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: 6,
     paddingHorizontal: 16,
-    alignItems: 'flex-end',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  logoSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
   },
   texto: {
     fontSize: 12,

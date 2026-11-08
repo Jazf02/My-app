@@ -33,6 +33,8 @@ type TipoPeriodo = 'dia' | 'semana' | 'mes' | 'ano';
 export default function ResumenScreen(): React.JSX.Element {
   const [tipoPeriodo, setTipoPeriodo] = useState<TipoPeriodo>('semana');
   const [fechaReferencia, setFechaReferencia] = useState<string>(hoyISO());
+  const [mostrarCalendario, setMostrarCalendario] = useState(false);
+  const [mesCalendario, setMesCalendario] = useState<Date>(() => new Date());
   const [cargando, setCargando] = useState(true);
 
   // Métricas
@@ -189,10 +191,99 @@ export default function ResumenScreen(): React.JSX.Element {
           <Pressable style={styles.centroNav} onPress={irAHoyPeriodo}>
             <Text style={styles.textoPeriodo}>{etiquetaPeriodo}</Text>
           </Pressable>
+          <Pressable style={styles.btnCalendarioToggle} onPress={() => setMostrarCalendario(!mostrarCalendario)}>
+            <Text style={styles.btnCalendarioIcono}>📅</Text>
+          </Pressable>
           <Pressable style={styles.btnNav} onPress={() => cambiarPeriodoOffset(1)}>
             <Text style={styles.btnNavTexto}>►</Text>
           </Pressable>
         </View>
+
+        {/* Calendario Interactivo Desplegable */}
+        {mostrarCalendario && (
+          <View style={styles.cajaCalendario}>
+            <View style={styles.calHeader}>
+              <Pressable
+                style={styles.calBtnMes}
+                onPress={() => {
+                  const n = new Date(mesCalendario);
+                  n.setMonth(n.getMonth() - 1);
+                  setMesCalendario(n);
+                }}
+              >
+                <Text style={styles.calBtnMesTexto}>◄</Text>
+              </Pressable>
+              <Text style={styles.calMesTitulo}>
+                {mesCalendario.toLocaleDateString('es-HN', { month: 'long', year: 'numeric' })}
+              </Text>
+              <Pressable
+                style={styles.calBtnMes}
+                onPress={() => {
+                  const n = new Date(mesCalendario);
+                  n.setMonth(n.getMonth() + 1);
+                  setMesCalendario(n);
+                }}
+              >
+                <Text style={styles.calBtnMesTexto}>►</Text>
+              </Pressable>
+            </View>
+
+            {/* Días de la semana */}
+            <View style={styles.calFilaDiasNom}>
+              {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
+                <Text key={i} style={styles.calDiaNomTexto}>{d}</Text>
+              ))}
+            </View>
+
+            {/* Grid de Días del Mes */}
+            <View style={styles.calGridDias}>
+              {(() => {
+                const y = mesCalendario.getFullYear();
+                const m = mesCalendario.getMonth();
+                const primerDiaMes = new Date(y, m, 1);
+                // Ajustar lunes = 0
+                let diaSemanaInicio = primerDiaMes.getDay() - 1;
+                if (diaSemanaInicio === -1) diaSemanaInicio = 6;
+                const totalDias = new Date(y, m + 1, 0).getDate();
+
+                const celdas = [];
+                for (let i = 0; i < diaSemanaInicio; i++) {
+                  celdas.push(<View key={`empty-${i}`} style={styles.calCeldaVacia} />);
+                }
+                for (let dia = 1; dia <= totalDias; dia++) {
+                  const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+                  const seleccionado = fechaReferencia === iso;
+                  const esHoy = iso === hoyISO();
+                  celdas.push(
+                    <Pressable
+                      key={iso}
+                      style={[
+                        styles.calCeldaDia,
+                        seleccionado && styles.calCeldaDiaSel,
+                        esHoy && !seleccionado && styles.calCeldaDiaHoy,
+                      ]}
+                      onPress={() => {
+                        setFechaReferencia(iso);
+                        setMostrarCalendario(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.calNumDia,
+                          seleccionado && styles.calNumDiaSel,
+                          esHoy && !seleccionado && styles.calNumDiaHoy,
+                        ]}
+                      >
+                        {dia}
+                      </Text>
+                    </Pressable>
+                  );
+                }
+                return celdas;
+              })()}
+            </View>
+          </View>
+        )}
       </View>
 
       {cargando ? (
@@ -396,6 +487,99 @@ const styles = StyleSheet.create({
   btnNavTexto: {
     fontSize: 16,
     color: '#2E7D32',
+    fontWeight: '700',
+  },
+  btnCalendarioToggle: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    backgroundColor: '#E8F5E9',
+    marginHorizontal: 4,
+  },
+  btnCalendarioIcono: {
+    fontSize: 15,
+  },
+  cajaCalendario: {
+    marginTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: '#C8E6C9',
+  },
+  calHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  calBtnMes: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 6,
+  },
+  calBtnMesTexto: {
+    color: '#166534',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  calMesTitulo: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1A1A1A',
+    textTransform: 'capitalize',
+  },
+  calFilaDiasNom: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    paddingBottom: 4,
+  },
+  calDiaNomTexto: {
+    width: 32,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#6B7280',
+  },
+  calGridDias: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  calCeldaVacia: {
+    width: `${100 / 7}%`,
+    height: 34,
+  },
+  calCeldaDia: {
+    width: `${100 / 7}%`,
+    height: 34,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 8,
+    marginVertical: 1,
+  },
+  calCeldaDiaSel: {
+    backgroundColor: '#2E7D32',
+  },
+  calCeldaDiaHoy: {
+    borderWidth: 1,
+    borderColor: '#2E7D32',
+    backgroundColor: '#F0FDF4',
+  },
+  calNumDia: {
+    fontSize: 13,
+    color: '#1A1A1A',
+    fontWeight: '600',
+  },
+  calNumDiaSel: {
+    color: '#FFFFFF',
+    fontWeight: '700',
+  },
+  calNumDiaHoy: {
+    color: '#15803D',
     fontWeight: '700',
   },
   centroNav: {

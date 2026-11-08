@@ -139,8 +139,8 @@ export default function TrabajadorDetalleScreen(): React.JSX.Element {
 
         <View style={s.tarjetaDominical}>
           <View style={s.infoDominical}>
-            <Text style={s.dominicalTitulo}>Trabaja en domingos</Text>
-            <Text style={s.dominicalSub}>Se muestra los domingos con tarifa x2</Text>
+            <Text style={s.dominicalTitulo}>Habilitado para domingos</Text>
+            <Text style={s.dominicalSub}>Aparece en lista de asistencia dominical con pago manual</Text>
           </View>
           <Switch value={Boolean(trabajador.dominical)} onValueChange={handleToggleDominical} trackColor={{ false: "#E5E7EB", true: "#86EFAC" }} thumbColor={Boolean(trabajador.dominical) ? "#2E7D32" : "#9CA3AF"} />
         </View>

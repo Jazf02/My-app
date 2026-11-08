@@ -3,8 +3,11 @@
 // MEJORA 1: Calendario horizontal deslizante
 // MEJORA 3: Separación de responsabilidades
 // MEJORA 5: Domingo automático + Filtro dominicales
+// MEJORA 6: Buscador de trabajadores en Asistencia
+// MEJORA 7: Tarifa dominical predeterminada desde AsyncStorage
 // ═══════════════════════════════════════════════════════════
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -53,10 +56,13 @@ export default function HoyScreen(): React.JSX.Element {
   } | null>(null);
   const [toastTimeout, setToastTimeout] = useState<any>(null);
 
-  // Modal para tarifa personalizada del día
+  // Tarifa override modal state
   const [modalTarifaVisible, setModalTarifaVisible] = useState(false);
   const [trabajadorSeleccionado, setTrabajadorSeleccionado] = useState<Trabajador | null>(null);
   const [tarifaOverrideInput, setTarifaOverrideInput] = useState('');
+
+  // Buscador de trabajadores en Asistencia
+  const [busqueda, setBusqueda] = useState<string>('');
 
   const mostrarUndo = (mensaje: string, accionRevertir: () => Promise<void>) => {
     if (toastTimeout) clearTimeout(toastTimeout);
@@ -117,6 +123,15 @@ export default function HoyScreen(): React.JSX.Element {
     return trabajadores;
   }, [trabajadores, esDomingo]);
 
+  // Lista de trabajadores filtrada por búsqueda (solo visual, no altera totales)
+  const trabajadoresFiltrados = useMemo(() => {
+    if (!busqueda.trim()) return trabajadoresVisibles;
+    const q = busqueda.toLowerCase().trim();
+    return trabajadoresVisibles.filter((t) =>
+      t.nombre.toLowerCase().includes(q)
+    );
+  }, [trabajadoresVisibles, busqueda]);
+
   // Navegación de semanas (◄ ► cambia semana/mes)
   const cambiarSemana = (diasOffset: number) => {
     const d = new Date(fechaSeleccionada + 'T00:00:00');
@@ -136,13 +151,12 @@ export default function HoyScreen(): React.JSX.Element {
     );
   };
 
-  // Obtener tarifa aplicada para el día (tarifa base × 2 en domingo si no hay override)
+  // Obtener tarifa aplicada para el día (si hay override se respeta; en domingo el monto es manual)
   const getTarifaAplicada = (trabajador: Trabajador, registro?: DiaTrabajado): number => {
     if (typeof registro?.tarifa_diaria === 'number' && registro.tarifa_diaria > 0) {
       return registro.tarifa_diaria;
     }
-    const base = trabajador.tarifa_diaria_default || 250;
-    return esDomingo ? base * 2 : base;
+    return trabajador.tarifa_diaria_default || 250;
   };
 
   const verificarSemanaAbierta = (): boolean => {
@@ -163,7 +177,12 @@ export default function HoyScreen(): React.JSX.Element {
     const registro = getRegistroDia(trabajador.id);
     const estadoActual = Boolean(registro && registro.presente === 1);
     const nuevoEstado = !estadoActual;
-    const tarifaPorDefecto = getTarifaAplicada(trabajador, registro);
+
+    // Regla de Negocio: En domingo, si se va a marcar Presente, se pide el monto manual
+    if (esDomingo && nuevoEstado) {
+      abrirModalTarifa(trabajador);
+      return;
+    }
 
     try {
       await marcarAsistencia({
@@ -171,7 +190,7 @@ export default function HoyScreen(): React.JSX.Element {
         trabajadorId: trabajador.id,
         fecha: fechaSeleccionada,
         presente: nuevoEstado,
-        tarifaDiariaOverride: registro?.tarifa_diaria ?? (esDomingo ? tarifaPorDefecto : null),
+        tarifaDiariaOverride: registro?.tarifa_diaria ?? null,
       });
 
       const actualizadas = await obtenerAsistenciaSemanal(semana.id);
@@ -240,9 +259,15 @@ export default function HoyScreen(): React.JSX.Element {
   const abrirModalTarifa = (trabajador: Trabajador) => {
     if (!verificarSemanaAbierta()) return;
     const reg = getRegistroDia(trabajador.id);
-    const tarifaActual = getTarifaAplicada(trabajador, reg);
+    // Si ya tiene un monto guardado, sugerirlo; si es domingo nuevo, dejar vacío para ingreso manual
+    let tarifaInicial = '';
+    if (typeof reg?.tarifa_diaria === 'number' && reg.tarifa_diaria > 0) {
+      tarifaInicial = String(reg.tarifa_diaria);
+    } else if (!esDomingo) {
+      tarifaInicial = String(trabajador.tarifa_diaria_default || 250);
+    }
     setTrabajadorSeleccionado(trabajador);
-    setTarifaOverrideInput(String(tarifaActual));
+    setTarifaOverrideInput(tarifaInicial);
     setModalTarifaVisible(true);
   };
 
@@ -251,15 +276,21 @@ export default function HoyScreen(): React.JSX.Element {
     if (!verificarSemanaAbierta()) return;
 
     const tarifa = parseFloat(tarifaOverrideInput.replace(',', '.'));
-    if (isNaN(tarifa) || tarifa <= 0) return;
+    if (isNaN(tarifa) || tarifa <= 0) {
+      Alert.alert('Monto requerido', 'Por favor ingresa un monto válido mayor a 0.');
+      return;
+    }
 
     try {
       const reg = getRegistroDia(trabajadorSeleccionado.id);
+      // Al guardar tarifa en domingo, si no estaba marcado presente, marcarlo como presente
+      const marcarPresente = reg ? Boolean(reg.presente) : true;
+
       await marcarAsistencia({
         semanaId: semana.id,
         trabajadorId: trabajadorSeleccionado.id,
         fecha: fechaSeleccionada,
-        presente: reg ? Boolean(reg.presente) : true,
+        presente: marcarPresente,
         tarifaDiariaOverride: tarifa,
       });
 
@@ -421,7 +452,7 @@ export default function HoyScreen(): React.JSX.Element {
             </Text>
             {esDomingo && (
               <View style={styles.badgeDomingoHeader}>
-                <Text style={styles.badgeDomingoHeaderTexto}>DOMINGO (×2)</Text>
+                <Text style={styles.badgeDomingoHeaderTexto}>☀️ DOMINGO — Pago Especial</Text>
               </View>
             )}
           </View>
@@ -444,6 +475,30 @@ export default function HoyScreen(): React.JSX.Element {
           )}
         </View>
       </View>
+
+      {/* Barra de Búsqueda de Trabajadores */}
+      {trabajadoresVisibles.length > 0 && (
+        <View style={styles.barraBusqueda}>
+          <TextInput
+            style={styles.inputBusqueda}
+            placeholder="Buscar trabajador por nombre..."
+            placeholderTextColor="#9CA3AF"
+            value={busqueda}
+            onChangeText={setBusqueda}
+            clearButtonMode="while-editing"
+            returnKeyType="search"
+          />
+          {busqueda.length > 0 && (
+            <Pressable
+              style={styles.btnLimpiarBusqueda}
+              onPress={() => setBusqueda('')}
+              hitSlop={8}
+            >
+              <Text style={styles.btnLimpiarTexto}>✕</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
 
       {/* Lista de Trabajadores */}
       {cargando ? (
@@ -468,9 +523,23 @@ export default function HoyScreen(): React.JSX.Element {
             <Text style={styles.btnIrTrabajadoresTexto}>Ir a Trabajadores</Text>
           </Pressable>
         </View>
+      ) : trabajadoresFiltrados.length === 0 ? (
+        <View style={styles.vacioContainer}>
+          <Text style={styles.vacioEmoji}>🔍</Text>
+          <Text style={styles.vacioTitulo}>Sin resultados</Text>
+          <Text style={styles.vacioTexto}>
+            No hay trabajadores que coincidan con "{busqueda}".
+          </Text>
+          <Pressable
+            style={styles.btnIrTrabajadores}
+            onPress={() => setBusqueda('')}
+          >
+            <Text style={styles.btnIrTrabajadoresTexto}>Limpiar Búsqueda</Text>
+          </Pressable>
+        </View>
       ) : (
         <FlatList
-          data={trabajadoresVisibles}
+          data={trabajadoresFiltrados}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.lista}
           renderItem={({ item }) => {
@@ -574,11 +643,13 @@ export default function HoyScreen(): React.JSX.Element {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContenido}>
-            <Text style={styles.modalTitulo}>Tarifa del Día</Text>
+            <Text style={styles.modalTitulo}>
+              {esDomingo ? '☀️ Pago Especial del Domingo' : 'Tarifa del Día'}
+            </Text>
             <Text style={styles.modalSubtitulo}>
               Para {trabajadorSeleccionado?.nombre} el{' '}
               {formatearFechaCorta(fechaSeleccionada)}
-              {esDomingo ? ' (Tarifa domingo)' : ''}
+              {esDomingo ? ' — Ingresa el monto a pagar por asistir este domingo' : ''}
             </Text>
 
             <TextInput
@@ -586,9 +657,15 @@ export default function HoyScreen(): React.JSX.Element {
               value={tarifaOverrideInput}
               onChangeText={setTarifaOverrideInput}
               keyboardType="numeric"
-              placeholder="250"
+              placeholder={esDomingo ? 'Ej. 400' : '250'}
               autoFocus
             />
+
+            {esDomingo && (
+              <Text style={{ fontSize: 12, color: '#6B7280', marginTop: -6, marginBottom: 4 }}>
+                ℹ️ Este pago es independiente del salario normal (L. {trabajadorSeleccionado?.tarifa_diaria_default || 250}/día) y no lo modificará.
+              </Text>
+            )}
 
             <View style={styles.modalBotones}>
               <Pressable
@@ -781,6 +858,33 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  barraBusqueda: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  inputBusqueda: {
+    flex: 1,
+    backgroundColor: '#F2F4F2',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    fontSize: 15,
+    color: '#1A1A1A',
+  },
+  btnLimpiarBusqueda: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  btnLimpiarTexto: {
+    color: '#9CA3AF',
+    fontSize: 14,
+    fontWeight: '700',
   },
   lista: {
     padding: 16,

@@ -81,6 +81,15 @@ export default function TabsLayout(): React.JSX.Element {
           ),
         }}
       />
+      <Tabs.Screen
+        name="instalar"
+        options={{
+          title: 'Instalar QR',
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="📲" focused={focused} />
+          ),
+        }}
+      />
 
       {/* Rutas secundarias (detalle y subpantallas) ocultas de la barra */}
       <Tabs.Screen

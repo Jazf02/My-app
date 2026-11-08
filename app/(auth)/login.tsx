@@ -5,6 +5,7 @@
 import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
+  Image,
   Linking,
   Platform,
   Pressable,
@@ -75,7 +76,11 @@ export default function LoginScreen(): React.JSX.Element {
         <View style={styles.container}>
           {/* Logo / Título */}
           <View style={styles.header}>
-            <Text style={styles.logo}>🌱</Text>
+            <Image
+              source={require('@/assets/logo.png')}
+              style={{ width: 120, height: 120, borderRadius: 20 }}
+              accessibilityLabel="Logo AgroGámez"
+            />
             <Text style={styles.titulo}>AgroGámez</Text>
             <Text style={styles.subtitulo}>Sistema de gestión agrícola</Text>
           </View>
