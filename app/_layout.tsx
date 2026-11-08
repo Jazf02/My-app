@@ -12,12 +12,26 @@ import { AuthProvider } from '@/auth/provider';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useAuth } from '@/auth/useAuth';
 import { initTables } from '@/database/local';
+import { iniciarSyncEnSegundoPlano, detenerSyncEnSegundoPlano, ejecutarSincronizacion } from '@/sync/syncEngine';
 
 // ─── Guard de rutas según sesión ─────────────────────────────
 function RouteGuard(): null {
   const { isLoggedIn, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // Control del ciclo de vida del Sync Engine según sesión
+  useEffect(() => {
+    if (isLoggedIn) {
+      iniciarSyncEnSegundoPlano();
+      ejecutarSincronizacion().catch(() => {});
+    } else {
+      detenerSyncEnSegundoPlano();
+    }
+    return () => {
+      detenerSyncEnSegundoPlano();
+    };
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (isLoading) return;

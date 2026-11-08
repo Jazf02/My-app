@@ -472,3 +472,4 @@ export function detenerSyncEnSegundoPlano(): void {
     _syncInterval = null;
   }
 }
+

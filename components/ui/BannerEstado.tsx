@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════
-// components/ui/BannerEstado.tsx — Banner de estado de sync
-// Fase 1: siempre muestra "● Offline" (Fase 5 lo activa)
+// components/ui/BannerEstado.tsx — Banner de estado de sync en tiempo real
+// Conectado automáticamente con el Sync Engine y Supabase
 // ═══════════════════════════════════════════════════════════
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import type { EstadoSync } from '@/types';
+import { getEstadoSync, suscribirEstadoSync } from '@/sync/status';
 
 interface BannerEstadoProps {
   estado?: EstadoSync;
@@ -19,9 +20,14 @@ interface EstadoConfig {
 
 const ESTADO_CONFIG: Record<EstadoSync, EstadoConfig> = {
   sincronizado: {
-    label: '● Sincronizado',
+    label: '● En línea',
     color: '#1B5E20',
     backgroundColor: '#E8F5E9',
+  },
+  sincronizando: {
+    label: '🔄 Sincronizando...',
+    color: '#1565C0',
+    backgroundColor: '#E3F2FD',
   },
   pendiente: {
     label: '⚠️ Pendiente',
@@ -29,7 +35,7 @@ const ESTADO_CONFIG: Record<EstadoSync, EstadoConfig> = {
     backgroundColor: '#FFF3E0',
   },
   offline: {
-    label: '● Offline',
+    label: '● Modo Offline',
     color: '#424242',
     backgroundColor: '#F5F5F5',
   },
@@ -42,10 +48,26 @@ const ESTADO_CONFIG: Record<EstadoSync, EstadoConfig> = {
 
 /**
  * Banner que muestra el estado de sincronización en la parte superior.
- * Por defecto muestra 'offline'. Fase 5 lo conecta al estado real.
+ * Se suscribe automáticamente al estado global del motor de sincronización.
  */
-export function BannerEstado({ estado = 'offline' }: BannerEstadoProps): React.JSX.Element {
-  const config = ESTADO_CONFIG[estado];
+export function BannerEstado({ estado: propEstado }: BannerEstadoProps): React.JSX.Element {
+  const [estadoGlobal, setEstadoGlobal] = useState<EstadoSync>(getEstadoSync());
+
+  useEffect(() => {
+    // Si viene forzado por props, no suscribir
+    if (propEstado) return;
+
+    const desuscribir = suscribirEstadoSync((nuevoEstado) => {
+      setEstadoGlobal(nuevoEstado);
+    });
+
+    return () => {
+      desuscribir();
+    };
+  }, [propEstado]);
+
+  const estadoFinal = propEstado || estadoGlobal;
+  const config = ESTADO_CONFIG[estadoFinal] || ESTADO_CONFIG.offline;
 
   return (
     <View

@@ -94,14 +94,18 @@ export async function webCrearTrabajador(input: CrearTrabajadorDTO): Promise<Tra
 
 export async function webObtenerTrabajadores(soloActivos: boolean = true): Promise<Trabajador[]> {
   let list = getList<Trabajador>('trabajadores');
-  // Si no hay trabajadores aún en web, inicializar con datos de demostración
-  if (list.length === 0) {
-    list = [
-      { id: 'w1', nombre: 'Juan Pérez', tarifa_diaria_default: 250, activo: 1, dominical: 0, synced: 0 },
-      { id: 'w2', nombre: 'Carlos Gómez', tarifa_diaria_default: 250, activo: 1, dominical: 0, synced: 0 },
-      { id: 'w3', nombre: 'María Rodríguez', tarifa_diaria_default: 280, activo: 1, dominical: 0, synced: 0 },
-    ];
-    saveList('trabajadores', list);
+  const seeded = typeof window !== 'undefined' ? localStorage.getItem('agrogamez_seeded') : 'true';
+  if (list.length === 0 && !seeded) {
+    if (typeof window !== 'undefined') localStorage.setItem('agrogamez_seeded', 'true');
+    const hasSupabase = process.env.EXPO_PUBLIC_SUPABASE_URL && !process.env.EXPO_PUBLIC_SUPABASE_URL.includes('placeholder');
+    if (!hasSupabase) {
+      list = [
+        { id: 'w1', nombre: 'Juan Pérez', tarifa_diaria_default: 250, activo: 1, dominical: 0, synced: 0 },
+        { id: 'w2', nombre: 'Carlos Gómez', tarifa_diaria_default: 250, activo: 1, dominical: 0, synced: 0 },
+        { id: 'w3', nombre: 'María Rodríguez', tarifa_diaria_default: 280, activo: 1, dominical: 0, synced: 0 },
+      ];
+      saveList('trabajadores', list);
+    }
   }
   const filtrados = soloActivos ? list.filter((t) => t.activo === 1) : list;
   return filtrados.sort((a, b) => a.nombre.localeCompare(b.nombre));

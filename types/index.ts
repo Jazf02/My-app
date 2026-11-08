@@ -135,7 +135,7 @@ export interface BackupLog {
 }
 
 // ─── Estado de Sincronización ───────────────────────────────
-export type EstadoSync = 'sincronizado' | 'pendiente' | 'offline' | 'error';
+export type EstadoSync = 'sincronizado' | 'pendiente' | 'offline' | 'error' | 'sincronizando';
 
 // ─── Resúmenes de cálculo ───────────────────────────────────
 export interface ResumenSemana {

@@ -1,7 +1,7 @@
 // ═══════════════════════════════════════════════════════════
 // app/(auth)/login.tsx — Inicio de Sesión Oficial Profesional
 // Autenticación con Correo Electrónico y Contraseña vía Supabase
-// Recuperación de Contraseña y Verificación de Correo
+// Recuperación de Contraseña + Código QR de Descarga Exclusivo en Web
 // ═══════════════════════════════════════════════════════════
 
 import React, { useState } from 'react';
@@ -12,12 +12,12 @@ import {
   Platform,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { BannerEstado } from '@/components/ui/BannerEstado';
 import { useAuth } from '@/auth/useAuth';
@@ -139,158 +139,199 @@ export default function LoginScreen(): React.JSX.Element {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <BannerEstado estado="offline" />
+      <BannerEstado />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
-        <View style={styles.container}>
-          {/* Logo / Título */}
-          <View style={styles.header}>
-            <Image
-              source={require('@/assets/logo.png')}
-              style={{ width: 110, height: 110, borderRadius: 22 }}
-              accessibilityLabel="Logo AgroGámez"
-            />
-            <Text style={styles.titulo}>AgroGámez</Text>
-            <Text style={styles.subtitulo}>Sistema Integral Agrícola</Text>
-          </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.container}>
+            {/* Logo Oficial sin fondo con transparencia real */}
+            <View style={styles.header}>
+              <Image
+                source={require('@/assets/logo.png')}
+                style={styles.logo}
+                resizeMode="contain"
+                accessibilityLabel="Logo AgroGámez"
+              />
+              <Text style={styles.titulo}>AgroGámez</Text>
+              <Text style={styles.subtitulo}>Sistema Integral Agrícola</Text>
+            </View>
 
-          {/* Formulario Profesional */}
-          <View style={styles.form}>
-            <Text style={styles.label}>Correo Electrónico</Text>
-            <TextInput
-              id="login-email-input"
-              style={styles.inputTexto}
-              value={email}
-              onChangeText={(text) => { setEmail(text); setError(null); }}
-              placeholder="correo@ejemplo.com"
-              placeholderTextColor="#9E9E9E"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isLoading}
-              autoFocus
-            />
+            {/* Formulario Profesional */}
+            <View style={styles.form}>
+              <Text style={styles.label}>Correo Electrónico</Text>
+              <TextInput
+                id="login-email-input"
+                style={styles.inputTexto}
+                value={email}
+                onChangeText={(text) => { setEmail(text); setError(null); }}
+                placeholder="correo@ejemplo.com"
+                placeholderTextColor="#9E9E9E"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isLoading}
+              />
 
-            {vista !== 'recuperar' && (
-              <>
-                <Text style={[styles.label, { marginTop: 6 }]}>Contraseña</Text>
-                <TextInput
-                  id="login-password-input"
-                  style={styles.inputTexto}
-                  value={password}
-                  onChangeText={(text) => { setPassword(text); setError(null); }}
-                  placeholder="••••••••"
-                  placeholderTextColor="#9E9E9E"
-                  secureTextEntry
-                  editable={!isLoading}
-                  returnKeyType={vista === 'registro' ? 'next' : 'done'}
-                  onSubmitEditing={vista === 'login' ? handleSubmit : undefined}
-                />
-              </>
-            )}
-
-            {vista === 'registro' && (
-              <>
-                <Text style={[styles.label, { marginTop: 6 }]}>Confirmar Contraseña</Text>
-                <TextInput
-                  id="login-password-confirm-input"
-                  style={styles.inputTexto}
-                  value={confirmPassword}
-                  onChangeText={(text) => { setConfirmPassword(text); setError(null); }}
-                  placeholder="••••••••"
-                  placeholderTextColor="#9E9E9E"
-                  secureTextEntry
-                  editable={!isLoading}
-                  returnKeyType="done"
-                  onSubmitEditing={handleSubmit}
-                />
-              </>
-            )}
-
-            {/* Enlaces contextuales (Olvidé contraseña / Cambiar a registro) */}
-            <View style={styles.filaEnlaces}>
-              {vista === 'login' ? (
+              {vista !== 'recuperar' && (
                 <>
-                  <Pressable onPress={() => { setVista('recuperar'); setError(null); setMensajeExito(null); }}>
-                    <Text style={styles.enlaceTexto}>¿Olvidaste tu contraseña?</Text>
-                  </Pressable>
-                  <Pressable onPress={() => { setVista('registro'); setError(null); setMensajeExito(null); }}>
-                    <Text style={[styles.enlaceTexto, styles.enlaceVerde]}>Crear cuenta nueva</Text>
-                  </Pressable>
+                  <Text style={[styles.label, { marginTop: 6 }]}>Contraseña</Text>
+                  <TextInput
+                    id="login-password-input"
+                    style={styles.inputTexto}
+                    value={password}
+                    onChangeText={(text) => { setPassword(text); setError(null); }}
+                    placeholder="••••••••"
+                    placeholderTextColor="#9E9E9E"
+                    secureTextEntry
+                    editable={!isLoading}
+                    returnKeyType={vista === 'registro' ? 'next' : 'done'}
+                    onSubmitEditing={vista === 'login' ? handleSubmit : undefined}
+                  />
                 </>
-              ) : (
-                <Pressable onPress={() => { setVista('login'); setError(null); setMensajeExito(null); }} style={{ width: '100%', alignItems: 'center' }}>
-                  <Text style={[styles.enlaceTexto, styles.enlaceVerde]}>← Volver a Iniciar Sesión</Text>
-                </Pressable>
+              )}
+
+              {vista === 'registro' && (
+                <>
+                  <Text style={[styles.label, { marginTop: 6 }]}>Confirmar Contraseña</Text>
+                  <TextInput
+                    id="login-password-confirm-input"
+                    style={styles.inputTexto}
+                    value={confirmPassword}
+                    onChangeText={(text) => { setConfirmPassword(text); setError(null); }}
+                    placeholder="••••••••"
+                    placeholderTextColor="#9E9E9E"
+                    secureTextEntry
+                    editable={!isLoading}
+                    returnKeyType="done"
+                    onSubmitEditing={handleSubmit}
+                  />
+                </>
+              )}
+
+              {/* Enlaces contextuales (Olvidé contraseña / Cambiar a registro) */}
+              <View style={styles.filaEnlaces}>
+                {vista === 'login' ? (
+                  <>
+                    <Pressable onPress={() => { setVista('recuperar'); setError(null); setMensajeExito(null); }}>
+                      <Text style={styles.enlaceTexto}>¿Olvidaste tu contraseña?</Text>
+                    </Pressable>
+                    <Pressable onPress={() => { setVista('registro'); setError(null); setMensajeExito(null); }}>
+                      <Text style={[styles.enlaceTexto, styles.enlaceVerde]}>Crear cuenta nueva</Text>
+                    </Pressable>
+                  </>
+                ) : (
+                  <Pressable onPress={() => { setVista('login'); setError(null); setMensajeExito(null); }} style={{ width: '100%', alignItems: 'center' }}>
+                    <Text style={[styles.enlaceTexto, styles.enlaceVerde]}>← Volver a Iniciar Sesión</Text>
+                  </Pressable>
+                )}
+              </View>
+
+              {/* Mensajes de Alerta y Éxito */}
+              {error !== null && (
+                <View style={styles.errorContainer}>
+                  <Text style={styles.errorTexto}>⚠️ {error}</Text>
+                </View>
+              )}
+
+              {mensajeExito !== null && (
+                <View style={styles.exitoContainer}>
+                  <Text style={styles.exitoTexto}>✅ {mensajeExito}</Text>
+                </View>
+              )}
+
+              {/* Botón Principal */}
+              <Pressable
+                id="login-submit-btn"
+                style={({ pressed }) => [
+                  styles.boton,
+                  pressed && styles.botonPresionado,
+                  isLoading && styles.botonDisabled,
+                ]}
+                onPress={handleSubmit}
+                disabled={isLoading}
+                accessibilityRole="button"
+              >
+                {isLoading ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.botonTexto}>
+                    {vista === 'login'
+                      ? 'Iniciar Sesión'
+                      : vista === 'registro'
+                      ? 'Crear Cuenta Segura'
+                      : 'Enviar Enlace de Recuperación'}
+                  </Text>
+                )}
+              </Pressable>
+
+              {/* ══════════════════════════════════════════════════════ */}
+              {/* CÓDIGO QR PARA CELULAR (EXCLUSIVO DE LA VERSIÓN WEB)  */}
+              {/* En el celular NO aparece porque ya está descargada     */}
+              {/* ══════════════════════════════════════════════════════ */}
+              {Platform.OS === 'web' && (
+                <View style={styles.cardQrWeb}>
+                  <View style={styles.qrHeader}>
+                    <Text style={styles.qrIcono}>📲</Text>
+                    <View style={styles.qrTextosHeader}>
+                      <Text style={styles.qrTitulo}>Usar en tu Celular</Text>
+                      <Text style={styles.qrSubtitulo}>Escanea con la cámara de tu celular</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.qrContenido}>
+                    <View style={styles.qrMarco}>
+                      <Image
+                        source={require('@/assets/qr-descargar.png')}
+                        style={styles.qrImagen}
+                        resizeMode="contain"
+                        accessibilityLabel="Código QR para instalar en tu celular"
+                      />
+                    </View>
+
+                    <View style={styles.qrPuntos}>
+                      <View style={styles.qrFilaItem}>
+                        <Text style={styles.qrItemEmoji}>🤖</Text>
+                        <Text style={styles.qrItemTexto}>
+                          <Text style={styles.qrItemNegrita}>Android:</Text> Descarga el archivo APK oficial.
+                        </Text>
+                      </View>
+
+                      <View style={styles.qrFilaItem}>
+                        <Text style={styles.qrItemEmoji}>🍏</Text>
+                        <Text style={styles.qrItemTexto}>
+                          <Text style={styles.qrItemNegrita}>iPhone:</Text> Instrucciones para Safari y pantalla de inicio.
+                        </Text>
+                      </View>
+
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.btnDescargaDirectaPC,
+                          pressed && { opacity: 0.8 },
+                        ]}
+                        onPress={handleDescargarApk}
+                      >
+                        <Text style={styles.btnDescargaDirectaPCTexto}>
+                          ⬇️ Descargar APK en esta computadora
+                        </Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                </View>
               )}
             </View>
 
-            {/* Mensajes de Alerta y Éxito */}
-            {error !== null && (
-              <View style={styles.errorContainer}>
-                <Text style={styles.errorTexto}>⚠️ {error}</Text>
-              </View>
-            )}
-
-            {mensajeExito !== null && (
-              <View style={styles.exitoContainer}>
-                <Text style={styles.exitoTexto}>✅ {mensajeExito}</Text>
-              </View>
-            )}
-
-            {/* Botón Principal */}
-            <Pressable
-              id="login-submit-btn"
-              style={({ pressed }) => [
-                styles.boton,
-                pressed && styles.botonPresionado,
-                isLoading && styles.botonDisabled,
-              ]}
-              onPress={handleSubmit}
-              disabled={isLoading}
-              accessibilityRole="button"
-            >
-              {isLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.botonTexto}>
-                  {vista === 'login'
-                    ? 'Iniciar Sesión'
-                    : vista === 'registro'
-                    ? 'Crear Cuenta Segura'
-                    : 'Enviar Enlace de Recuperación'}
-                </Text>
-              )}
-            </Pressable>
-
-            {/* Botón Descargar APK para Android (Solo visible en versión Web) */}
-            {Platform.OS === 'web' && (
-              <Pressable
-                id="descargar-apk-btn"
-                style={({ pressed }) => [
-                  styles.botonApk,
-                  pressed && styles.botonApkPresionado,
-                ]}
-                onPress={handleDescargarApk}
-                accessibilityRole="button"
-                accessibilityLabel="Descargar app para Android"
-              >
-                <Text style={styles.botonApkIcono}>🤖</Text>
-                <View style={styles.botonApkTextos}>
-                  <Text style={styles.botonApkTitulo}>Descargar app para Android</Text>
-                  <Text style={styles.botonApkSubtitulo}>Instalar archivo APK directamente</Text>
-                </View>
-              </Pressable>
-            )}
+            <Text style={styles.pie}>
+              Protegido con cifrado seguro y autenticación en la nube.
+            </Text>
           </View>
-
-          <Text style={styles.pie}>
-            Protegido con cifrado seguro y autenticación en la nube.
-          </Text>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -304,18 +345,27 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  container: {
-    flex: 1,
-    paddingHorizontal: 28,
+  scrollContainer: {
+    flexGrow: 1,
     justifyContent: 'center',
-    maxWidth: 480,
+    paddingVertical: 24,
+  },
+  container: {
+    paddingHorizontal: 28,
+    maxWidth: 520,
     width: '100%',
     alignSelf: 'center',
-    gap: 18,
+    gap: 16,
   },
   header: {
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    marginBottom: 4,
+  },
+  logo: {
+    width: 125,
+    height: 125,
+    marginBottom: 4,
   },
   titulo: {
     fontSize: 28,
@@ -408,42 +458,100 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  botonApk: {
+  // ─── Tarjeta QR Web ──────────────────────────────────────
+  cardQrWeb: {
+    backgroundColor: '#F8FAF8',
+    borderColor: '#E2E8F0',
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 16,
+    marginTop: 12,
+    gap: 12,
+  },
+  qrHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F0FDF4',
-    borderColor: '#86EFAC',
-    borderWidth: 1.5,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    gap: 12,
-    marginTop: 6,
+    gap: 10,
   },
-  botonApkPresionado: {
-    backgroundColor: '#DCFCE7',
-    opacity: 0.9,
+  qrIcono: {
+    fontSize: 24,
   },
-  botonApkIcono: {
-    fontSize: 22,
-  },
-  botonApkTextos: {
+  qrTextosHeader: {
     flex: 1,
   },
-  botonApkTitulo: {
-    color: '#166534',
-    fontSize: 14,
+  qrTitulo: {
+    fontSize: 15,
     fontWeight: '700',
+    color: '#1E293B',
   },
-  botonApkSubtitulo: {
-    color: '#15803D',
+  qrSubtitulo: {
     fontSize: 12,
+    color: '#64748B',
     fontWeight: '500',
+  },
+  qrContenido: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    flexWrap: 'wrap',
+  },
+  qrMarco: {
+    backgroundColor: '#FFFFFF',
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+  },
+  qrImagen: {
+    width: 130,
+    height: 130,
+  },
+  qrPuntos: {
+    flex: 1,
+    minWidth: 180,
+    gap: 8,
+  },
+  qrFilaItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+  },
+  qrItemEmoji: {
+    fontSize: 14,
+  },
+  qrItemTexto: {
+    fontSize: 12,
+    color: '#334155',
+    lineHeight: 16,
+    flex: 1,
+  },
+  qrItemNegrita: {
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  btnDescargaDirectaPC: {
+    marginTop: 4,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: '#E2E8F0',
+    alignSelf: 'flex-start',
+  },
+  btnDescargaDirectaPCTexto: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#334155',
   },
   pie: {
     textAlign: 'center',
     fontSize: 12,
     color: '#9CA3AF',
+    marginTop: 4,
   },
 });
-
