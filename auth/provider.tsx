@@ -1,6 +1,6 @@
 // ═══════════════════════════════════════════════════════════
-// auth/provider.tsx — Context de autenticación LOCAL (PIN)
-// 100% offline-first. Sin Supabase, sin internet.
+// auth/provider.tsx — Context de autenticación HÍBRIDO (PIN local + Supabase Cloud)
+// 100% offline-first con opción de sincronizar y acceder desde cualquier dispositivo
 // ═══════════════════════════════════════════════════════════
 
 import React, {
@@ -17,6 +17,7 @@ import {
   getSessionActive,
   setSessionActive,
 } from './localAuth';
+import { supabase } from '@/lib/supabase';
 import type { AuthContextValue } from '@/types';
 
 // ─── Contexto ────────────────────────────────────────────────
@@ -31,14 +32,25 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasPin, setHasPin] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Al arrancar, verificar si ya hay un PIN configurado
+  // Al arrancar, verificar sesión Supabase y PIN local
   useEffect(() => {
     (async () => {
       try {
         const pinExiste = await tienePin();
         setHasPin(pinExiste);
-        // Si la sesión estaba activa en memoria (reinicio en caliente)
+
+        // Verificar si hay sesión activa en Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          setUserEmail(session.user.email || null);
+          setSessionActive(true);
+          setIsLoggedIn(true);
+          return;
+        }
+
+        // Si no hay Supabase o estamos offline, verificar memoria local
         if (getSessionActive()) {
           setIsLoggedIn(true);
         }
@@ -51,8 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   }, []);
 
   /**
-   * Verifica el PIN e inicia la sesión.
-   * Lanza Error si el PIN es incorrecto.
+   * Verifica el PIN local e inicia la sesión.
    */
   const login = useCallback(async (pin: string): Promise<void> => {
     const ok = await verificarPin(pin);
@@ -64,7 +75,43 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   }, []);
 
   /**
-   * Crea el PIN por primera vez (onboarding).
+   * Iniciar sesión con Correo Electrónico en Supabase (Multi-dispositivo).
+   */
+  const loginWithEmail = useCallback(async (email: string, pass: string): Promise<void> => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password: pass,
+    });
+    if (error) {
+      throw new Error(error.message || 'Error al iniciar sesión con correo.');
+    }
+    if (data.user) {
+      setUserEmail(data.user.email || null);
+      setSessionActive(true);
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  /**
+   * Registrar nuevo usuario con Correo en Supabase.
+   */
+  const registerWithEmail = useCallback(async (email: string, pass: string): Promise<void> => {
+    const { data, error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password: pass,
+    });
+    if (error) {
+      throw new Error(error.message || 'Error al registrar usuario.');
+    }
+    if (data.user) {
+      setUserEmail(data.user.email || null);
+      setSessionActive(true);
+      setIsLoggedIn(true);
+    }
+  }, []);
+
+  /**
+   * Crea el PIN por primera vez (onboarding local).
    */
   const setupPin = useCallback(async (pin: string): Promise<void> => {
     await guardarPin(pin);
@@ -74,16 +121,30 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
   }, []);
 
   /**
-   * Cierra la sesión. El usuario deberá ingresar el PIN de nuevo.
+   * Cierra la sesión (local y en Supabase).
    */
-  const logout = useCallback((): void => {
+  const logout = useCallback(async (): Promise<void> => {
+    try {
+      await supabase.auth.signOut();
+    } catch {}
+    setUserEmail(null);
     setSessionActive(false);
     setIsLoggedIn(false);
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ isLoggedIn, isLoading, hasPin, login, setupPin, logout }),
-    [isLoggedIn, isLoading, hasPin, login, setupPin, logout]
+    () => ({
+      isLoggedIn,
+      isLoading,
+      hasPin,
+      userEmail,
+      login,
+      loginWithEmail,
+      registerWithEmail,
+      setupPin,
+      logout,
+    }),
+    [isLoggedIn, isLoading, hasPin, userEmail, login, loginWithEmail, registerWithEmail, setupPin, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

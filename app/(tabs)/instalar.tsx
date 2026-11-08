@@ -45,11 +45,19 @@ export default function InstalarScreen(): React.JSX.Element {
 
           {/* Contenedor del Código QR */}
           <View style={styles.qrContainer}>
-            <Image
-              source={{ uri: qrImageUrl }}
-              style={styles.qrImage}
-              resizeMode="contain"
-            />
+            {Platform.OS === 'web' ? (
+              <img
+                src={qrImageUrl}
+                alt="Código QR de instalación de AgroGámez"
+                style={{ width: 220, height: 220, objectFit: 'contain', display: 'block' }}
+              />
+            ) : (
+              <Image
+                source={{ uri: qrImageUrl }}
+                style={styles.qrImage}
+                resizeMode="contain"
+              />
+            )}
           </View>
 
           <Text style={styles.urlTexto}>{urlDescarga}</Text>

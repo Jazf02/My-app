@@ -22,8 +22,19 @@ import { useRouter } from 'expo-router';
 
 export default function LoginScreen(): React.JSX.Element {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, loginWithEmail, registerWithEmail } = useAuth();
+  
+  // Modo de acceso: 'pin' o 'email'
+  const [modo, setModo] = useState<'pin' | 'email'>('pin');
+  
+  // Estados para PIN
   const [pin, setPin] = useState('');
+  
+  // Estados para Correo
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [esRegistro, setEsRegistro] = useState(false);
+  
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -31,21 +42,38 @@ export default function LoginScreen(): React.JSX.Element {
     if (isLoading) return;
     setError(null);
 
-    if (!pin.trim()) {
-      setError('Ingresa tu PIN de acceso.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await login(pin.trim());
-      // RouteGuard en _layout.tsx redirige automáticamente a /(tabs)/hoy
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al verificar el PIN.';
-      setError(msg);
-      setPin('');
-    } finally {
-      setIsLoading(false);
+    if (modo === 'pin') {
+      if (!pin.trim()) {
+        setError('Ingresa tu PIN de acceso.');
+        return;
+      }
+      setIsLoading(true);
+      try {
+        await login(pin.trim());
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Error al verificar el PIN.');
+        setPin('');
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      // Modo Correo Electrónico
+      if (!email.trim() || !password.trim()) {
+        setError('Ingresa correo y contraseña.');
+        return;
+      }
+      setIsLoading(true);
+      try {
+        if (esRegistro) {
+          await registerWithEmail(email, password);
+        } else {
+          await loginWithEmail(email, password);
+        }
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Error de autenticación con correo.');
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -85,25 +113,86 @@ export default function LoginScreen(): React.JSX.Element {
             <Text style={styles.subtitulo}>Sistema de gestión agrícola</Text>
           </View>
 
-          {/* Formulario PIN */}
+          {/* Selector de Modo: PIN o Correo */}
+          <View style={styles.selectorModo}>
+            <Pressable
+              style={[styles.btnModo, modo === 'pin' && styles.btnModoActivo]}
+              onPress={() => { setModo('pin'); setError(null); }}
+            >
+              <Text style={[styles.btnModoTexto, modo === 'pin' && styles.btnModoTextoActivo]}>
+                🔢 PIN Local
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.btnModo, modo === 'email' && styles.btnModoActivo]}
+              onPress={() => { setModo('email'); setError(null); }}
+            >
+              <Text style={[styles.btnModoTexto, modo === 'email' && styles.btnModoTextoActivo]}>
+                ☁️ Correo Supabase
+              </Text>
+            </Pressable>
+          </View>
+
+          {/* Formulario */}
           <View style={styles.form}>
-            <Text style={styles.label}>PIN de acceso</Text>
-            <TextInput
-              id="login-pin-input"
-              style={styles.input}
-              value={pin}
-              onChangeText={setPin}
-              placeholder="●●●●"
-              placeholderTextColor="#9E9E9E"
-              keyboardType="number-pad"
-              secureTextEntry
-              maxLength={6}
-              returnKeyType="done"
-              onSubmitEditing={handleLogin}
-              editable={!isLoading}
-              autoFocus
-              accessibilityLabel="Campo de PIN de acceso"
-            />
+            {modo === 'pin' ? (
+              <>
+                <Text style={styles.label}>PIN de acceso local</Text>
+                <TextInput
+                  id="login-pin-input"
+                  style={styles.input}
+                  value={pin}
+                  onChangeText={setPin}
+                  placeholder="●●●●"
+                  placeholderTextColor="#9E9E9E"
+                  keyboardType="number-pad"
+                  secureTextEntry
+                  maxLength={6}
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                  editable={!isLoading}
+                  autoFocus
+                  accessibilityLabel="Campo de PIN de acceso"
+                />
+              </>
+            ) : (
+              <>
+                <Text style={styles.label}>Correo Electrónico</Text>
+                <TextInput
+                  style={styles.inputTexto}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="ejemplo@correo.com"
+                  placeholderTextColor="#9E9E9E"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  editable={!isLoading}
+                  autoFocus
+                />
+
+                <Text style={[styles.label, { marginTop: 6 }]}>Contraseña</Text>
+                <TextInput
+                  style={styles.inputTexto}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor="#9E9E9E"
+                  secureTextEntry
+                  editable={!isLoading}
+                  returnKeyType="done"
+                  onSubmitEditing={handleLogin}
+                />
+
+                <Pressable
+                  style={{ alignSelf: 'flex-end', paddingVertical: 4 }}
+                  onPress={() => setEsRegistro(!esRegistro)}
+                >
+                  <Text style={{ fontSize: 13, color: '#2E7D32', fontWeight: '600' }}>
+                    {esRegistro ? '¿Ya tienes cuenta? Iniciar Sesión' : '¿No tienes cuenta? Registrarse'}
+                  </Text>
+                </Pressable>
+              </>
+            )}
 
             {/* Error */}
             {error !== null && (
@@ -123,12 +212,13 @@ export default function LoginScreen(): React.JSX.Element {
               onPress={handleLogin}
               disabled={isLoading}
               accessibilityRole="button"
-              accessibilityLabel="Ingresar con PIN"
             >
               {isLoading ? (
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
-                <Text style={styles.botonTexto}>Entrar</Text>
+                <Text style={styles.botonTexto}>
+                  {modo === 'pin' ? 'Entrar con PIN' : esRegistro ? 'Registrar y Entrar' : 'Entrar con Correo'}
+                </Text>
               )}
             </Pressable>
 
@@ -209,6 +299,47 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 12,
+  },
+  selectorModo: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 4,
+  },
+  btnModo: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnModoActivo: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  btnModoTexto: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  btnModoTextoActivo: {
+    color: '#166534',
+    fontWeight: '700',
+  },
+  inputTexto: {
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#1A1A1A',
+    backgroundColor: '#FAFAFA',
   },
   label: {
     fontSize: 14,
