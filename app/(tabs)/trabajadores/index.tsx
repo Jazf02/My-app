@@ -9,6 +9,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   StyleSheet,
@@ -24,6 +25,7 @@ import {
   actualizarTrabajador,
   desactivarTrabajador,
   activarTrabajador,
+  eliminarTrabajador,
 } from '@/database/trabajadores';
 import { formatearMoneda } from '@/lib/fechas';
 import type { Trabajador } from '@/types/domain';
@@ -138,6 +140,46 @@ export default function TrabajadoresScreen(): React.JSX.Element {
     } catch (err) {
       console.error('[Trabajadores] Error al cambiar estado:', err);
     }
+  };
+
+  const handleEliminarTrabajador = (t: Trabajador) => {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      const confirma = window.confirm(
+        `¿Eliminar definitivamente a "${t.nombre}"?\n\nEsta acción borrará al trabajador y todos sus registros de asistencia de forma permanente.`
+      );
+      if (confirma) {
+        eliminarTrabajador(t.id)
+          .then(() => {
+            if (modalVisible) setModalVisible(false);
+            cargarDatos();
+          })
+          .catch((err) => {
+            Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo eliminar el trabajador.');
+          });
+      }
+      return;
+    }
+
+    Alert.alert(
+      'Eliminar Trabajador',
+      `¿Deseas eliminar definitivamente a "${t.nombre}"?\n\nEsta acción no se puede deshacer y borrará sus registros de asistencia.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await eliminarTrabajador(t.id);
+              if (modalVisible) setModalVisible(false);
+              cargarDatos();
+            } catch (err) {
+              Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo eliminar el trabajador.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   const filtrados = trabajadores.filter((t) =>
@@ -274,6 +316,14 @@ export default function TrabajadoresScreen(): React.JSX.Element {
                       {item.activo === 1 ? '🟢' : '⚪'}
                     </Text>
                   </Pressable>
+                  <Pressable
+                    style={[styles.btnAccion, styles.btnAccionEliminar]}
+                    onPress={() => handleEliminarTrabajador(item)}
+                    hitSlop={8}
+                    accessibilityLabel="Eliminar trabajador"
+                  >
+                    <Text style={styles.btnAccionIcono}>🗑️</Text>
+                  </Pressable>
                 </View>
               </View>
             </Pressable>
@@ -325,6 +375,16 @@ export default function TrabajadoresScreen(): React.JSX.Element {
               <View style={styles.errorBox}>
                 <Text style={styles.errorTexto}>{errorForm}</Text>
               </View>
+            )}
+
+            {trabajadorEditando && (
+              <Pressable
+                style={styles.btnEliminarModal}
+                onPress={() => handleEliminarTrabajador(trabajadorEditando)}
+                disabled={guardando}
+              >
+                <Text style={styles.btnEliminarModalTexto}>🗑️ Eliminar trabajador definitivamente</Text>
+              </Pressable>
             )}
 
             <View style={styles.modalBotones}>
@@ -518,6 +578,23 @@ const styles = StyleSheet.create({
   },
   btnAccion: {
     padding: 6,
+    borderRadius: 8,
+  },
+  btnAccionEliminar: {
+    backgroundColor: '#FEF2F2',
+  },
+  btnEliminarModal: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+  },
+  btnEliminarModalTexto: {
+    color: '#DC2626',
+    fontSize: 13,
+    fontWeight: '700',
   },
   btnAccionIcono: {
     fontSize: 18,

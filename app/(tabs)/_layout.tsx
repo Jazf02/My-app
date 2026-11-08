@@ -82,6 +82,15 @@ export default function TabsLayout(): React.JSX.Element {
         }}
       />
       <Tabs.Screen
+        name="configuracion"
+        options={{
+          title: 'Ajustes',
+          tabBarIcon: ({ focused }) => (
+            <TabIcon emoji="⚙️" focused={focused} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="instalar"
         options={{
           href: null,

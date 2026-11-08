@@ -116,13 +116,16 @@ export default function HoyScreen(): React.JSX.Element {
     return d.getDay() === 0;
   }, [fechaSeleccionada]);
 
+  // Filtro de domingo: 'todos' | 'dominicales' (por defecto muestra a todos para no bloquear)
+  const [filtroDomingo, setFiltroDomingo] = useState<'todos' | 'dominicales'>('todos');
+
   // Lista de trabajadores según filtro dominical (MEJORA 5)
   const trabajadoresVisibles = useMemo(() => {
-    if (esDomingo) {
+    if (esDomingo && filtroDomingo === 'dominicales') {
       return trabajadores.filter((t) => Boolean(t.dominical));
     }
     return trabajadores;
-  }, [trabajadores, esDomingo]);
+  }, [trabajadores, esDomingo, filtroDomingo]);
 
   // Lista de trabajadores filtrada por búsqueda (solo visual, no altera totales)
   const trabajadoresFiltrados = useMemo(() => {
@@ -284,8 +287,8 @@ export default function HoyScreen(): React.JSX.Element {
 
     try {
       const reg = getRegistroDia(trabajadorSeleccionado.id);
-      // Al guardar tarifa en domingo, si no estaba marcado presente, marcarlo como presente
-      const marcarPresente = reg ? Boolean(reg.presente) : true;
+      // Al guardar tarifa en domingo, SIEMPRE se marca presente con su pago especial
+      const marcarPresente = esDomingo ? true : (reg ? Boolean(reg.presente) : true);
 
       await marcarAsistencia({
         semanaId: semana.id,
@@ -457,6 +460,27 @@ export default function HoyScreen(): React.JSX.Element {
               </View>
             )}
           </View>
+
+          {esDomingo && (
+            <View style={styles.filaFiltroDomingo}>
+              <Pressable
+                style={[styles.pillFiltro, filtroDomingo === 'todos' && styles.pillFiltroActivo]}
+                onPress={() => setFiltroDomingo('todos')}
+              >
+                <Text style={[styles.pillFiltroTexto, filtroDomingo === 'todos' && styles.pillFiltroTextoActivo]}>
+                  👥 Todos ({trabajadores.length})
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.pillFiltro, filtroDomingo === 'dominicales' && styles.pillFiltroActivo]}
+                onPress={() => setFiltroDomingo('dominicales')}
+              >
+                <Text style={[styles.pillFiltroTexto, filtroDomingo === 'dominicales' && styles.pillFiltroTextoActivo]}>
+                  ☀️ Dominicales ({trabajadores.filter((t) => Boolean(t.dominical)).length})
+                </Text>
+              </Pressable>
+            </View>
+          )}
 
           {trabajadoresVisibles.length > 0 && (
             <View style={styles.filaAcciones}>
@@ -835,6 +859,33 @@ const styles = StyleSheet.create({
   filaAcciones: {
     flexDirection: 'row',
     gap: 6,
+  },
+  filaFiltroDomingo: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    flexWrap: 'wrap',
+  },
+  pillFiltro: {
+    backgroundColor: '#F3F4F6',
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  pillFiltroActivo: {
+    backgroundColor: '#DCFCE7',
+    borderColor: '#86EFAC',
+  },
+  pillFiltroTexto: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4B5563',
+  },
+  pillFiltroTextoActivo: {
+    color: '#15803D',
+    fontWeight: '700',
   },
   btnAccionRapida: {
     backgroundColor: '#E8F5E9',

@@ -1,9 +1,9 @@
 // app/(tabs)/trabajadores/[id].tsx - MEJORA 3
 import React, { useCallback, useState } from "react";
-import { ActivityIndicator, Alert, Modal, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Alert, Modal, Platform, Pressable, SafeAreaView, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { BannerEstado } from "@/components/ui/BannerEstado";
-import { obtenerTrabajadorPorId, actualizarTrabajador } from "@/database/trabajadores";
+import { obtenerTrabajadorPorId, actualizarTrabajador, eliminarTrabajador } from "@/database/trabajadores";
 import { obtenerOCrearSemanaActual, obtenerAsistenciaSemanal, obtenerAdelantosSemana, marcarAsistencia, registrarAdelanto, revertirAdelanto, obtenerResumenTrabajadorSemana } from "@/database/asistencia";
 import { formatearFechaCorta, formatearMoneda, DIAS_SEMANA, fechaToISO, hoyISO } from "@/lib/fechas";
 import type { Trabajador, Semana, DiaTrabajado, Adelanto } from "@/types/domain";
@@ -213,6 +213,47 @@ export default function TrabajadorDetalleScreen(): React.JSX.Element {
               })}</View>
           }
         </View>
+
+        <View style={[s.seccion, s.seccionEliminar]}>
+          <Text style={s.eliminarTitulo}>Zona de Administración</Text>
+          <Text style={s.eliminarSub}>
+            Elimina permanentemente a este trabajador y todos sus registros de asistencia y pagos.
+          </Text>
+          <Pressable
+            style={s.btnEliminarDefinitivo}
+            onPress={() => {
+              if (Platform.OS === 'web' && typeof window !== 'undefined') {
+                const ok = window.confirm(
+                  `¿Estás seguro de que deseas eliminar permanentemente a "${trabajador.nombre}"?\n\nEsta acción no se puede deshacer.`
+                );
+                if (ok) {
+                  eliminarTrabajador(trabajador.id).then(() => {
+                    router.replace('/(tabs)/trabajadores');
+                  });
+                }
+                return;
+              }
+
+              Alert.alert(
+                'Eliminar Trabajador',
+                `¿Deseas eliminar permanentemente a "${trabajador.nombre}"?\n\nEsta acción no se puede deshacer.`,
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Eliminar',
+                    style: 'destructive',
+                    onPress: async () => {
+                      await eliminarTrabajador(trabajador.id);
+                      router.replace('/(tabs)/trabajadores');
+                    },
+                  },
+                ]
+              );
+            }}
+          >
+            <Text style={s.btnEliminarDefinitivoTexto}>🗑️ Eliminar Trabajador Permanentemente</Text>
+          </Pressable>
+        </View>
       </ScrollView>
 
       <Modal visible={modalTarifaVisible} transparent animationType="slide" onRequestClose={() => setModalTarifaVisible(false)}>
@@ -334,4 +375,9 @@ const s = StyleSheet.create({
   btnCancelText: { color: "#4B5563", fontSize: 15, fontWeight: "600" },
   btnSave: { backgroundColor: "#2E7D32" },
   btnSaveText: { color: "#FFF", fontSize: 15, fontWeight: "700" },
+  seccionEliminar: { borderColor: "#FEE2E2", backgroundColor: "#FEF2F2", marginTop: 8 },
+  eliminarTitulo: { fontSize: 16, fontWeight: "700", color: "#991B1B" },
+  eliminarSub: { fontSize: 13, color: "#7F1D1D", lineHeight: 18 },
+  btnEliminarDefinitivo: { backgroundColor: "#DC2626", paddingVertical: 13, borderRadius: 12, alignItems: "center", marginTop: 4 },
+  btnEliminarDefinitivoTexto: { color: "#FFFFFF", fontSize: 14, fontWeight: "700" },
 });

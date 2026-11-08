@@ -125,6 +125,24 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
     setIsLoggedIn(false);
   }, []);
 
+  /**
+   * Elimina la cuenta y limpia los datos del usuario.
+   */
+  const deleteAccount = useCallback(async (): Promise<void> => {
+    try {
+      // Limpiar datos locales y cerrar sesión
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.clear();
+      }
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.warn('[Auth] Error al eliminar cuenta:', err);
+    } finally {
+      setUserEmail(null);
+      setIsLoggedIn(false);
+    }
+  }, []);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       isLoggedIn,
@@ -134,8 +152,9 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
       registerWithEmail,
       resetPassword,
       logout,
+      deleteAccount,
     }),
-    [isLoggedIn, isLoading, userEmail, loginWithEmail, registerWithEmail, resetPassword, logout]
+    [isLoggedIn, isLoading, userEmail, loginWithEmail, registerWithEmail, resetPassword, logout, deleteAccount]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

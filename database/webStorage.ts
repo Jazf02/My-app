@@ -78,9 +78,19 @@ function saveList<T>(key: string, list: T[]): void {
 // ─── TRABAJADORES (WEB) ──────────────────────────────────────
 export async function webCrearTrabajador(input: CrearTrabajadorDTO): Promise<Trabajador> {
   const list = getList<Trabajador>('trabajadores');
+  const nombreLimpio = input.nombre.trim();
+
+  // Validación: No permitir nombres de trabajadores duplicados
+  const duplicado = list.find(
+    (t) => t.nombre.toLowerCase().trim() === nombreLimpio.toLowerCase()
+  );
+  if (duplicado) {
+    throw new Error(`Ya existe un trabajador registrado con el nombre "${nombreLimpio}".`);
+  }
+
   const nuevo: Trabajador = {
     id: uuid(),
-    nombre: input.nombre.trim(),
+    nombre: nombreLimpio,
     tarifa_diaria_default:
       typeof input.tarifa_diaria_default === 'number' ? input.tarifa_diaria_default : 250,
     activo: 1,
@@ -94,9 +104,9 @@ export async function webCrearTrabajador(input: CrearTrabajadorDTO): Promise<Tra
 
 export async function webObtenerTrabajadores(soloActivos: boolean = true): Promise<Trabajador[]> {
   let list = getList<Trabajador>('trabajadores');
-  const seeded = typeof window !== 'undefined' ? localStorage.getItem('agrogamez_seeded') : 'true';
+  const seeded = typeof window !== 'undefined' && typeof localStorage !== 'undefined' ? localStorage.getItem('agrogamez_seeded') : 'true';
   if (list.length === 0 && !seeded) {
-    if (typeof window !== 'undefined') localStorage.setItem('agrogamez_seeded', 'true');
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') localStorage.setItem('agrogamez_seeded', 'true');
     const hasSupabase = process.env.EXPO_PUBLIC_SUPABASE_URL && !process.env.EXPO_PUBLIC_SUPABASE_URL.includes('placeholder');
     if (!hasSupabase) {
       list = [
@@ -125,9 +135,21 @@ export async function webActualizarTrabajador(
   if (idx === -1) throw new Error(`Trabajador con id ${id} no encontrado.`);
 
   const actual = list[idx];
+  const nuevoNombre = input.nombre !== undefined ? input.nombre.trim() : actual.nombre;
+
+  // Validación: No permitir nombre duplicado con otro trabajador
+  if (input.nombre !== undefined) {
+    const duplicado = list.find(
+      (t) => t.id !== id && t.nombre.toLowerCase().trim() === nuevoNombre.toLowerCase()
+    );
+    if (duplicado) {
+      throw new Error(`Ya existe otro trabajador registrado con el nombre "${nuevoNombre}".`);
+    }
+  }
+
   const updated: Trabajador = {
     ...actual,
-    nombre: input.nombre !== undefined ? input.nombre.trim() : actual.nombre,
+    nombre: nuevoNombre,
     tarifa_diaria_default:
       input.tarifa_diaria_default !== undefined
         ? input.tarifa_diaria_default
@@ -138,6 +160,24 @@ export async function webActualizarTrabajador(
   list[idx] = updated;
   saveList('trabajadores', list);
   return updated;
+}
+
+/**
+ * Elimina definitivamente un trabajador y sus registros asociados en almacenamiento web.
+ */
+export async function webEliminarTrabajador(id: string): Promise<void> {
+  let list = await webObtenerTrabajadores(false);
+  list = list.filter((t) => t.id !== id);
+  saveList('trabajadores', list);
+
+  // Limpiar dias trabajados y adelantos asociados
+  let dias = getList<DiaTrabajado>('dias_trabajados');
+  dias = dias.filter((d) => d.trabajador_id !== id);
+  saveList('dias_trabajados', dias);
+
+  let adelantos = getList<Adelanto>('adelantos');
+  adelantos = adelantos.filter((a) => a.trabajador_id !== id);
+  saveList('adelantos', adelantos);
 }
 
 export async function webDesactivarTrabajador(id: string): Promise<void> {

@@ -173,4 +173,6 @@ export interface AuthContextValue {
   resetPassword: (email: string) => Promise<void>;
   /** Cierra la sesión */
   logout: () => Promise<void>;
+  /** Elimina la cuenta y limpia los datos */
+  deleteAccount: () => Promise<void>;
 }

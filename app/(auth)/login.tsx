@@ -34,6 +34,8 @@ export default function LoginScreen(): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
+  const [verConfirmPassword, setVerConfirmPassword] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
@@ -191,36 +193,56 @@ export default function LoginScreen(): React.JSX.Element {
               {vista !== 'recuperar' && (
                 <>
                   <Text style={[styles.label, { marginTop: 6 }]}>Contraseña</Text>
-                  <TextInput
-                    id="login-password-input"
-                    style={styles.inputTexto}
-                    value={password}
-                    onChangeText={(text) => { setPassword(text); setError(null); }}
-                    placeholder="••••••••"
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry
-                    editable={!isLoading}
-                    returnKeyType={vista === 'registro' ? 'next' : 'done'}
-                    onSubmitEditing={vista === 'login' ? handleSubmit : undefined}
-                  />
+                  <View style={styles.inputConOjito}>
+                    <TextInput
+                      id="login-password-input"
+                      style={styles.inputTextoConOjito}
+                      value={password}
+                      onChangeText={(text) => { setPassword(text); setError(null); }}
+                      placeholder="••••••••"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!verPassword}
+                      editable={!isLoading}
+                      returnKeyType={vista === 'registro' ? 'next' : 'done'}
+                      onSubmitEditing={vista === 'login' ? handleSubmit : undefined}
+                    />
+                    <Pressable
+                      style={styles.btnOjito}
+                      onPress={() => setVerPassword(!verPassword)}
+                      hitSlop={10}
+                      accessibilityLabel={verPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                    >
+                      <Text style={styles.btnOjitoIcono}>{verPassword ? '👁️' : '🔒'}</Text>
+                    </Pressable>
+                  </View>
                 </>
               )}
 
               {vista === 'registro' && (
                 <>
                   <Text style={[styles.label, { marginTop: 6 }]}>Confirmar Contraseña</Text>
-                  <TextInput
-                    id="login-password-confirm-input"
-                    style={styles.inputTexto}
-                    value={confirmPassword}
-                    onChangeText={(text) => { setConfirmPassword(text); setError(null); }}
-                    placeholder="••••••••"
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry
-                    editable={!isLoading}
-                    returnKeyType="done"
-                    onSubmitEditing={handleSubmit}
-                  />
+                  <View style={styles.inputConOjito}>
+                    <TextInput
+                      id="login-password-confirm-input"
+                      style={styles.inputTextoConOjito}
+                      value={confirmPassword}
+                      onChangeText={(text) => { setConfirmPassword(text); setError(null); }}
+                      placeholder="••••••••"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!verConfirmPassword}
+                      editable={!isLoading}
+                      returnKeyType="done"
+                      onSubmitEditing={handleSubmit}
+                    />
+                    <Pressable
+                      style={styles.btnOjito}
+                      onPress={() => setVerConfirmPassword(!verConfirmPassword)}
+                      hitSlop={10}
+                      accessibilityLabel={verConfirmPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                    >
+                      <Text style={styles.btnOjitoIcono}>{verConfirmPassword ? '👁️' : '🔒'}</Text>
+                    </Pressable>
+                  </View>
                 </>
               )}
 
@@ -416,6 +438,30 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#111827',
     backgroundColor: '#F9FAFB',
+  },
+  inputConOjito: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+  },
+  inputTextoConOjito: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#111827',
+  },
+  btnOjito: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  btnOjitoIcono: {
+    fontSize: 18,
   },
   filaEnlaces: {
     flexDirection: 'row',

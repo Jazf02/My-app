@@ -9,6 +9,7 @@ import {
   webActualizarTrabajador,
   webDesactivarTrabajador,
   webActivarTrabajador,
+  webEliminarTrabajador,
 } from './webStorage';
 
 /**
@@ -30,6 +31,16 @@ export async function crearTrabajador(input: CrearTrabajadorDTO): Promise<Trabaj
   const db = await getDB();
   const id = generarUUID();
   const nombre = input.nombre.trim();
+
+  // Validación: No permitir nombres de trabajadores duplicados
+  const existente = await db.getFirstAsync<Trabajador>(
+    `SELECT id FROM trabajadores WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?));`,
+    [nombre]
+  );
+  if (existente) {
+    throw new Error(`Ya existe un trabajador registrado con el nombre "${nombre}".`);
+  }
+
   const tarifaDiaria = typeof input.tarifa_diaria_default === 'number' ? input.tarifa_diaria_default : 250;
 
   await db.runAsync(
@@ -96,6 +107,18 @@ export async function actualizarTrabajador(
   }
 
   const nuevoNombre = input.nombre !== undefined ? input.nombre.trim() : actual.nombre;
+
+  // Validación: No permitir nombre duplicado con otro trabajador
+  if (input.nombre !== undefined) {
+    const existente = await db.getFirstAsync<Trabajador>(
+      `SELECT id FROM trabajadores WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(?)) AND id != ?;`,
+      [nuevoNombre, id]
+    );
+    if (existente) {
+      throw new Error(`Ya existe otro trabajador registrado con el nombre "${nuevoNombre}".`);
+    }
+  }
+
   const nuevaTarifa = input.tarifa_diaria_default !== undefined ? input.tarifa_diaria_default : actual.tarifa_diaria_default;
   const nuevoDominical = input.dominical !== undefined ? input.dominical : (actual.dominical ?? 0);
 
@@ -108,6 +131,17 @@ export async function actualizarTrabajador(
 
   const actualizado = await obtenerTrabajadorPorId(id);
   return actualizado!;
+}
+
+/**
+ * Elimina definitivamente a un trabajador y sus registros asociados (asistencia y adelantos).
+ */
+export async function eliminarTrabajador(id: string): Promise<void> {
+  if (Platform.OS === 'web') return webEliminarTrabajador(id);
+  const db = await getDB();
+  await db.runAsync(`DELETE FROM dias_trabajados WHERE trabajador_id = ?;`, [id]);
+  await db.runAsync(`DELETE FROM adelantos WHERE trabajador_id = ?;`, [id]);
+  await db.runAsync(`DELETE FROM trabajadores WHERE id = ?;`, [id]);
 }
 
 /**
