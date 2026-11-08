@@ -14,6 +14,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -459,12 +460,14 @@ export default function HoyScreen(): React.JSX.Element {
 
           {trabajadoresVisibles.length > 0 && (
             <View style={styles.filaAcciones}>
-              <Pressable
-                style={[styles.btnAccionRapida, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }]}
-                onPress={() => router.push('/(tabs)/instalar' as any)}
-              >
-                <Text style={{ color: '#15803D', fontSize: 11, fontWeight: '700' }}>📲 Instalar QR</Text>
-              </Pressable>
+              {Platform.OS === 'web' && (
+                <Pressable
+                  style={[styles.btnAccionRapida, { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0', borderWidth: 1 }]}
+                  onPress={() => router.push('/(tabs)/instalar' as any)}
+                >
+                  <Text style={{ color: '#15803D', fontSize: 11, fontWeight: '700' }}>📲 Instalar QR</Text>
+                </Pressable>
+              )}
               <Pressable
                 style={styles.btnAccionRapida}
                 onPress={() => handleMarcarTodos(true)}

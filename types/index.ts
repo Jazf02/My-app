@@ -157,24 +157,20 @@ export interface ResumenCosecha {
   totalEmpacadas: number;
 }
 
-// ─── Auth (local PIN + Supabase Cloud Auth) ───────────────────
+// ─── Auth (Supabase Cloud Auth + Recuperación) ───────────────
 export interface AuthContextValue {
-  /** true cuando el usuario ingresó correctamente (PIN o Supabase) */
+  /** true cuando el usuario ingresó correctamente con su correo */
   isLoggedIn: boolean;
   /** true mientras se verifica la sesión o se carga el estado inicial */
   isLoading: boolean;
-  /** true si ya existe un PIN configurado localmente */
-  hasPin: boolean;
-  /** Correo del usuario autenticado en la nube si aplica */
+  /** Correo del usuario autenticado */
   userEmail?: string | null;
-  /** Verifica el PIN y abre la sesión local */
-  login: (pin: string) => Promise<void>;
   /** Iniciar sesión con Correo y Contraseña en Supabase */
   loginWithEmail: (email: string, password: string) => Promise<void>;
-  /** Registrar nuevo usuario con Correo y Contraseña en Supabase */
-  registerWithEmail: (email: string, password: string) => Promise<void>;
-  /** Configura el PIN por primera vez */
-  setupPin: (pin: string) => Promise<void>;
+  /** Registrar nuevo usuario con Correo verificado y Contraseña */
+  registerWithEmail: (email: string, password: string) => Promise<{ needsEmailConfirmation?: boolean }>;
+  /** Enviar correo para restablecer contraseña */
+  resetPassword: (email: string) => Promise<void>;
   /** Cierra la sesión */
   logout: () => Promise<void>;
 }

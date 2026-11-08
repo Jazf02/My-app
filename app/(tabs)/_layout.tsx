@@ -85,6 +85,7 @@ export default function TabsLayout(): React.JSX.Element {
         name="instalar"
         options={{
           title: 'Instalar QR',
+          href: Platform.OS === 'web' ? undefined : null,
           tabBarIcon: ({ focused }) => (
             <TabIcon emoji="📲" focused={focused} />
           ),

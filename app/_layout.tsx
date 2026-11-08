@@ -15,7 +15,7 @@ import { initTables } from '@/database/local';
 
 // ─── Guard de rutas según sesión ─────────────────────────────
 function RouteGuard(): null {
-  const { isLoggedIn, isLoading, hasPin } = useAuth();
+  const { isLoggedIn, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -26,16 +26,9 @@ function RouteGuard(): null {
     const authScreen = segments[1];
 
     if (!isLoggedIn) {
-      if (!hasPin) {
-        // Primera vez: no hay PIN configurado → debe estar en primer-uso
-        if (authScreen !== 'primer-uso') {
-          router.replace('/(auth)/primer-uso');
-        }
-      } else {
-        // Ya hay PIN configurado → debe estar en login
-        if (authScreen !== 'login') {
-          router.replace('/(auth)/login');
-        }
+      // Debe estar en login
+      if (authScreen !== 'login') {
+        router.replace('/(auth)/login');
       }
     } else {
       // Sesión iniciada: si está en (auth) o en la pantalla raíz, ir a la app
@@ -43,7 +36,7 @@ function RouteGuard(): null {
         router.replace('/(tabs)/hoy');
       }
     }
-  }, [isLoggedIn, isLoading, hasPin, segments, router]);
+  }, [isLoggedIn, isLoading, segments, router]);
 
   return null;
 }

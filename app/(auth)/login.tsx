@@ -1,5 +1,7 @@
 // ═══════════════════════════════════════════════════════════
-// app/(auth)/login.tsx — Pantalla de ingreso con PIN local
+// app/(auth)/login.tsx — Inicio de Sesión Oficial Profesional
+// Autenticación con Correo Electrónico y Contraseña vía Supabase
+// Recuperación de Contraseña y Verificación de Correo
 // ═══════════════════════════════════════════════════════════
 
 import React, { useState } from 'react';
@@ -15,6 +17,7 @@ import {
   TextInput,
   View,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { BannerEstado } from '@/components/ui/BannerEstado';
 import { useAuth } from '@/auth/useAuth';
@@ -22,58 +25,99 @@ import { useRouter } from 'expo-router';
 
 export default function LoginScreen(): React.JSX.Element {
   const router = useRouter();
-  const { login, loginWithEmail, registerWithEmail } = useAuth();
-  
-  // Modo de acceso: 'pin' o 'email'
-  const [modo, setModo] = useState<'pin' | 'email'>('pin');
-  
-  // Estados para PIN
-  const [pin, setPin] = useState('');
-  
-  // Estados para Correo
+  const { loginWithEmail, registerWithEmail, resetPassword } = useAuth();
+
+  // Estados: 'login' | 'registro' | 'recuperar'
+  const [vista, setVista] = useState<'login' | 'registro' | 'recuperar'>('login');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [esRegistro, setEsRegistro] = useState(false);
-  
+  const [confirmPassword, setConfirmPassword] = useState('');
+
   const [error, setError] = useState<string | null>(null);
+  const [mensajeExito, setMensajeExito] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = async (): Promise<void> => {
+  // Validación estricta de formato de correo
+  const validarEmail = (correo: string): boolean => {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(correo.trim());
+  };
+
+  const handleSubmit = async (): Promise<void> => {
     if (isLoading) return;
     setError(null);
+    setMensajeExito(null);
 
-    if (modo === 'pin') {
-      if (!pin.trim()) {
-        setError('Ingresa tu PIN de acceso.');
-        return;
-      }
+    const correoLimpio = email.trim().toLowerCase();
+
+    if (!validarEmail(correoLimpio)) {
+      setError('Por favor ingresa un correo electrónico válido y existente.');
+      return;
+    }
+
+    // Modo: Recuperar contraseña
+    if (vista === 'recuperar') {
       setIsLoading(true);
       try {
-        await login(pin.trim());
+        await resetPassword(correoLimpio);
+        setMensajeExito(
+          'Se ha enviado un enlace seguro a tu correo electrónico para restablecer tu contraseña. Revisa tu bandeja de entrada o spam.'
+        );
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Error al verificar el PIN.');
-        setPin('');
+        setError(err instanceof Error ? err.message : 'Error al enviar correo de recuperación.');
       } finally {
         setIsLoading(false);
       }
-    } else {
-      // Modo Correo Electrónico
-      if (!email.trim() || !password.trim()) {
-        setError('Ingresa correo y contraseña.');
+      return;
+    }
+
+    // Modo: Registro o Login requiere contraseña
+    if (!password || password.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres.');
+      return;
+    }
+
+    // Modo: Registro
+    if (vista === 'registro') {
+      if (password !== confirmPassword) {
+        setError('Las contraseñas no coinciden. Intenta de nuevo.');
         return;
       }
+
       setIsLoading(true);
       try {
-        if (esRegistro) {
-          await registerWithEmail(email, password);
-        } else {
-          await loginWithEmail(email, password);
+        const res = await registerWithEmail(correoLimpio, password);
+        if (res.needsEmailConfirmation) {
+          setMensajeExito(
+            '¡Cuenta creada exitosamente! Te hemos enviado un correo de confirmación. Por favor verifica tu cuenta para iniciar sesión.'
+          );
+          setVista('login');
+          setPassword('');
+          setConfirmPassword('');
         }
       } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Error de autenticación con correo.');
+        setError(err instanceof Error ? err.message : 'Error al registrar la cuenta.');
       } finally {
         setIsLoading(false);
       }
+      return;
+    }
+
+    // Modo: Iniciar Sesión
+    setIsLoading(true);
+    try {
+      await loginWithEmail(correoLimpio, password);
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error
+          ? err.message === 'Invalid login credentials'
+            ? 'Correo o contraseña incorrectos. Verifica tus datos.'
+            : err.message
+          : 'Error al iniciar sesión.'
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -106,102 +150,98 @@ export default function LoginScreen(): React.JSX.Element {
           <View style={styles.header}>
             <Image
               source={require('@/assets/logo.png')}
-              style={{ width: 120, height: 120, borderRadius: 20 }}
+              style={{ width: 110, height: 110, borderRadius: 22 }}
               accessibilityLabel="Logo AgroGámez"
             />
             <Text style={styles.titulo}>AgroGámez</Text>
-            <Text style={styles.subtitulo}>Sistema de gestión agrícola</Text>
+            <Text style={styles.subtitulo}>Sistema Integral Agrícola</Text>
           </View>
 
-          {/* Selector de Modo: PIN o Correo */}
-          <View style={styles.selectorModo}>
-            <Pressable
-              style={[styles.btnModo, modo === 'pin' && styles.btnModoActivo]}
-              onPress={() => { setModo('pin'); setError(null); }}
-            >
-              <Text style={[styles.btnModoTexto, modo === 'pin' && styles.btnModoTextoActivo]}>
-                🔢 PIN Local
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.btnModo, modo === 'email' && styles.btnModoActivo]}
-              onPress={() => { setModo('email'); setError(null); }}
-            >
-              <Text style={[styles.btnModoTexto, modo === 'email' && styles.btnModoTextoActivo]}>
-                ☁️ Correo Supabase
-              </Text>
-            </Pressable>
-          </View>
-
-          {/* Formulario */}
+          {/* Formulario Profesional */}
           <View style={styles.form}>
-            {modo === 'pin' ? (
-              <>
-                <Text style={styles.label}>PIN de acceso local</Text>
-                <TextInput
-                  id="login-pin-input"
-                  style={styles.input}
-                  value={pin}
-                  onChangeText={setPin}
-                  placeholder="●●●●"
-                  placeholderTextColor="#9E9E9E"
-                  keyboardType="number-pad"
-                  secureTextEntry
-                  maxLength={6}
-                  returnKeyType="done"
-                  onSubmitEditing={handleLogin}
-                  editable={!isLoading}
-                  autoFocus
-                  accessibilityLabel="Campo de PIN de acceso"
-                />
-              </>
-            ) : (
-              <>
-                <Text style={styles.label}>Correo Electrónico</Text>
-                <TextInput
-                  style={styles.inputTexto}
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="ejemplo@correo.com"
-                  placeholderTextColor="#9E9E9E"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  editable={!isLoading}
-                  autoFocus
-                />
+            <Text style={styles.label}>Correo Electrónico</Text>
+            <TextInput
+              id="login-email-input"
+              style={styles.inputTexto}
+              value={email}
+              onChangeText={(text) => { setEmail(text); setError(null); }}
+              placeholder="correo@ejemplo.com"
+              placeholderTextColor="#9E9E9E"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
+              autoFocus
+            />
 
+            {vista !== 'recuperar' && (
+              <>
                 <Text style={[styles.label, { marginTop: 6 }]}>Contraseña</Text>
                 <TextInput
+                  id="login-password-input"
                   style={styles.inputTexto}
                   value={password}
-                  onChangeText={setPassword}
+                  onChangeText={(text) => { setPassword(text); setError(null); }}
+                  placeholder="••••••••"
+                  placeholderTextColor="#9E9E9E"
+                  secureTextEntry
+                  editable={!isLoading}
+                  returnKeyType={vista === 'registro' ? 'next' : 'done'}
+                  onSubmitEditing={vista === 'login' ? handleSubmit : undefined}
+                />
+              </>
+            )}
+
+            {vista === 'registro' && (
+              <>
+                <Text style={[styles.label, { marginTop: 6 }]}>Confirmar Contraseña</Text>
+                <TextInput
+                  id="login-password-confirm-input"
+                  style={styles.inputTexto}
+                  value={confirmPassword}
+                  onChangeText={(text) => { setConfirmPassword(text); setError(null); }}
                   placeholder="••••••••"
                   placeholderTextColor="#9E9E9E"
                   secureTextEntry
                   editable={!isLoading}
                   returnKeyType="done"
-                  onSubmitEditing={handleLogin}
+                  onSubmitEditing={handleSubmit}
                 />
-
-                <Pressable
-                  style={{ alignSelf: 'flex-end', paddingVertical: 4 }}
-                  onPress={() => setEsRegistro(!esRegistro)}
-                >
-                  <Text style={{ fontSize: 13, color: '#2E7D32', fontWeight: '600' }}>
-                    {esRegistro ? '¿Ya tienes cuenta? Iniciar Sesión' : '¿No tienes cuenta? Registrarse'}
-                  </Text>
-                </Pressable>
               </>
             )}
 
-            {/* Error */}
+            {/* Enlaces contextuales (Olvidé contraseña / Cambiar a registro) */}
+            <View style={styles.filaEnlaces}>
+              {vista === 'login' ? (
+                <>
+                  <Pressable onPress={() => { setVista('recuperar'); setError(null); setMensajeExito(null); }}>
+                    <Text style={styles.enlaceTexto}>¿Olvidaste tu contraseña?</Text>
+                  </Pressable>
+                  <Pressable onPress={() => { setVista('registro'); setError(null); setMensajeExito(null); }}>
+                    <Text style={[styles.enlaceTexto, styles.enlaceVerde]}>Crear cuenta nueva</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable onPress={() => { setVista('login'); setError(null); setMensajeExito(null); }} style={{ width: '100%', alignItems: 'center' }}>
+                  <Text style={[styles.enlaceTexto, styles.enlaceVerde]}>← Volver a Iniciar Sesión</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {/* Mensajes de Alerta y Éxito */}
             {error !== null && (
               <View style={styles.errorContainer}>
-                <Text style={styles.errorTexto}>{error}</Text>
+                <Text style={styles.errorTexto}>⚠️ {error}</Text>
               </View>
             )}
 
-            {/* Botón de login */}
+            {mensajeExito !== null && (
+              <View style={styles.exitoContainer}>
+                <Text style={styles.exitoTexto}>✅ {mensajeExito}</Text>
+              </View>
+            )}
+
+            {/* Botón Principal */}
             <Pressable
               id="login-submit-btn"
               style={({ pressed }) => [
@@ -209,7 +249,7 @@ export default function LoginScreen(): React.JSX.Element {
                 pressed && styles.botonPresionado,
                 isLoading && styles.botonDisabled,
               ]}
-              onPress={handleLogin}
+              onPress={handleSubmit}
               disabled={isLoading}
               accessibilityRole="button"
             >
@@ -217,25 +257,16 @@ export default function LoginScreen(): React.JSX.Element {
                 <ActivityIndicator color="#FFFFFF" size="small" />
               ) : (
                 <Text style={styles.botonTexto}>
-                  {modo === 'pin' ? 'Entrar con PIN' : esRegistro ? 'Registrar y Entrar' : 'Entrar con Correo'}
+                  {vista === 'login'
+                    ? 'Iniciar Sesión'
+                    : vista === 'registro'
+                    ? 'Crear Cuenta Segura'
+                    : 'Enviar Enlace de Recuperación'}
                 </Text>
               )}
             </Pressable>
 
-            {/* Enlace para configurar PIN / Primer uso */}
-            <Pressable
-              id="login-ir-primer-uso-btn"
-              style={styles.botonSecundario}
-              onPress={() => router.replace('/(auth)/primer-uso')}
-              accessibilityRole="button"
-              accessibilityLabel="Configurar PIN por primera vez"
-            >
-              <Text style={styles.botonSecundarioTexto}>
-                ¿Primera vez en la app? Configurar PIN
-              </Text>
-            </Pressable>
-
-            {/* Botón Descargar APK para Android (Web) */}
+            {/* Botón Descargar APK para Android (Solo visible en versión Web) */}
             {Platform.OS === 'web' && (
               <Pressable
                 id="descargar-apk-btn"
@@ -249,7 +280,7 @@ export default function LoginScreen(): React.JSX.Element {
               >
                 <Text style={styles.botonApkIcono}>🤖</Text>
                 <View style={styles.botonApkTextos}>
-                  <Text style={styles.botonApkTitulo}>Descargar para Android</Text>
+                  <Text style={styles.botonApkTitulo}>Descargar app para Android</Text>
                   <Text style={styles.botonApkSubtitulo}>Instalar archivo APK directamente</Text>
                 </View>
               </Pressable>
@@ -257,7 +288,7 @@ export default function LoginScreen(): React.JSX.Element {
           </View>
 
           <Text style={styles.pie}>
-            Solo acceso autorizado. Los datos se guardan localmente.
+            Protegido con cifrado seguro y autenticación en la nube.
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -277,167 +308,142 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 28,
     justifyContent: 'center',
-    gap: 24,
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
+    gap: 18,
   },
   header: {
     alignItems: 'center',
-    gap: 8,
-  },
-  logo: {
-    fontSize: 72,
+    gap: 6,
   },
   titulo: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#1A1A1A',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1B5E20',
     letterSpacing: -0.5,
   },
   subtitulo: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#616161',
-    fontWeight: '400',
+    fontWeight: '500',
   },
   form: {
-    gap: 12,
+    gap: 10,
   },
-  selectorModo: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
-    padding: 4,
-    marginBottom: 4,
-  },
-  btnModo: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnModoActivo: {
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  btnModoTexto: {
+  label: {
     fontSize: 13,
-    fontWeight: '600',
-    color: '#6B7280',
-  },
-  btnModoTextoActivo: {
-    color: '#166534',
     fontWeight: '700',
+    color: '#374151',
+    marginBottom: -2,
   },
   inputTexto: {
     borderWidth: 1.5,
-    borderColor: '#E0E0E0',
+    borderColor: '#E5E7EB',
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    fontSize: 16,
+    fontSize: 15,
     color: '#1A1A1A',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: '#F9FAFB',
   },
-  label: {
-    fontSize: 14,
+  filaEnlaces: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 4,
+    marginTop: 2,
+  },
+  enlaceTexto: {
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '600',
-    color: '#424242',
-    marginBottom: -4,
   },
-  input: {
-    borderWidth: 1.5,
-    borderColor: '#E0E0E0',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 32,
-    color: '#1A1A1A',
-    backgroundColor: '#FAFAFA',
-    minHeight: 72,
-    letterSpacing: 12,
-    textAlign: 'center',
+  enlaceVerde: {
+    color: '#166534',
+    fontWeight: '700',
   },
   errorContainer: {
-    backgroundColor: '#FFEBEE',
-    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+    borderRadius: 10,
     padding: 12,
-    borderLeftWidth: 3,
-    borderLeftColor: '#C62828',
+    borderLeftWidth: 4,
+    borderLeftColor: '#DC2626',
   },
   errorTexto: {
-    color: '#B71C1C',
-    fontSize: 14,
-    fontWeight: '500',
+    color: '#991B1B',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  exitoContainer: {
+    backgroundColor: '#F0FDF4',
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: '#16A34A',
+  },
+  exitoTexto: {
+    color: '#166534',
+    fontSize: 13,
+    fontWeight: '600',
+    lineHeight: 18,
   },
   boton: {
     backgroundColor: '#2E7D32',
-    borderRadius: 16,
-    minHeight: 64,
+    borderRadius: 14,
+    minHeight: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 8,
+    marginTop: 6,
   },
   botonPresionado: {
-    opacity: 0.85,
+    opacity: 0.88,
   },
   botonDisabled: {
     opacity: 0.6,
   },
   botonTexto: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.3,
-  },
-  botonSecundario: {
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  botonSecundarioTexto: {
-    color: '#2E7D32',
-    fontSize: 15,
-    fontWeight: '600',
   },
   botonApk: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F1F8E9',
-    borderColor: '#4CAF50',
+    backgroundColor: '#F0FDF4',
+    borderColor: '#86EFAC',
     borderWidth: 1.5,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     gap: 12,
-    marginTop: 8,
+    marginTop: 6,
   },
   botonApkPresionado: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: '#DCFCE7',
     opacity: 0.9,
   },
   botonApkIcono: {
-    fontSize: 24,
+    fontSize: 22,
   },
   botonApkTextos: {
     flex: 1,
   },
   botonApkTitulo: {
-    color: '#1B5E20',
-    fontSize: 15,
+    color: '#166534',
+    fontSize: 14,
     fontWeight: '700',
   },
   botonApkSubtitulo: {
-    color: '#558B2F',
+    color: '#15803D',
     fontSize: 12,
     fontWeight: '500',
   },
   pie: {
     textAlign: 'center',
     fontSize: 12,
-    color: '#9E9E9E',
+    color: '#9CA3AF',
   },
 });
+
