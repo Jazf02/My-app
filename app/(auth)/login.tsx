@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════
 // app/(auth)/login.tsx — Inicio de Sesión Oficial Profesional
 // Autenticación con Correo Electrónico y Contraseña vía Supabase
-// Recuperación de Contraseña + Código QR de Descarga Exclusivo en Web
+// Recuperación de Contraseña + Código QR EXCLUSIVO en COMPUTADORA/DESKTOP
 // ═══════════════════════════════════════════════════════════
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   KeyboardAvoidingView,
   Image,
@@ -22,6 +22,7 @@ import {
 import { BannerEstado } from '@/components/ui/BannerEstado';
 import { useAuth } from '@/auth/useAuth';
 import { useRouter } from 'expo-router';
+import { esComputadoraWeb } from '@/lib/dispositivo';
 
 export default function LoginScreen(): React.JSX.Element {
   const router = useRouter();
@@ -37,6 +38,14 @@ export default function LoginScreen(): React.JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [mensajeExito, setMensajeExito] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  // El código QR SOLO se muestra en computadora de escritorio / laptop.
+  // En iPhone, Android, o PWA agregada a pantalla de inicio JAMÁS se muestra.
+  const [mostrarQrWeb, setMostrarQrWeb] = useState(false);
+
+  useEffect(() => {
+    setMostrarQrWeb(esComputadoraWeb());
+  }, []);
 
   // Validación estricta de formato de correo
   const validarEmail = (correo: string): boolean => {
@@ -150,8 +159,8 @@ export default function LoginScreen(): React.JSX.Element {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <View style={styles.container}>
-            {/* Logo Oficial sin fondo con transparencia real */}
+          <View style={styles.cardPrincipal}>
+            {/* Logo Oficial — Badge con forma de app icon */}
             <View style={styles.header}>
               <Image
                 source={require('@/assets/logo.png')}
@@ -172,7 +181,7 @@ export default function LoginScreen(): React.JSX.Element {
                 value={email}
                 onChangeText={(text) => { setEmail(text); setError(null); }}
                 placeholder="correo@ejemplo.com"
-                placeholderTextColor="#9E9E9E"
+                placeholderTextColor="#9CA3AF"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -188,7 +197,7 @@ export default function LoginScreen(): React.JSX.Element {
                     value={password}
                     onChangeText={(text) => { setPassword(text); setError(null); }}
                     placeholder="••••••••"
-                    placeholderTextColor="#9E9E9E"
+                    placeholderTextColor="#9CA3AF"
                     secureTextEntry
                     editable={!isLoading}
                     returnKeyType={vista === 'registro' ? 'next' : 'done'}
@@ -206,7 +215,7 @@ export default function LoginScreen(): React.JSX.Element {
                     value={confirmPassword}
                     onChangeText={(text) => { setConfirmPassword(text); setError(null); }}
                     placeholder="••••••••"
-                    placeholderTextColor="#9E9E9E"
+                    placeholderTextColor="#9CA3AF"
                     secureTextEntry
                     editable={!isLoading}
                     returnKeyType="done"
@@ -271,11 +280,11 @@ export default function LoginScreen(): React.JSX.Element {
                 )}
               </Pressable>
 
-              {/* ══════════════════════════════════════════════════════ */}
-              {/* CÓDIGO QR PARA CELULAR (EXCLUSIVO DE LA VERSIÓN WEB)  */}
-              {/* En el celular NO aparece porque ya está descargada     */}
-              {/* ══════════════════════════════════════════════════════ */}
-              {Platform.OS === 'web' && (
+              {/* ════════════════════════════════════════════════════════════ */}
+              {/* CÓDIGO QR: EXCLUSIVAMENTE EN COMPUTADORAS / LAPTOPS          */}
+              {/* En iPhone, Android, Safari móvil o PWA JAMÁS aparecerá     */}
+              {/* ════════════════════════════════════════════════════════════ */}
+              {mostrarQrWeb && (
                 <View style={styles.cardQrWeb}>
                   <View style={styles.qrHeader}>
                     <Text style={styles.qrIcono}>📲</Text>
@@ -340,7 +349,7 @@ export default function LoginScreen(): React.JSX.Element {
 const styles = StyleSheet.create({
   safe: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F3F4F6',
   },
   flex: {
     flex: 1,
@@ -348,24 +357,35 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
-    paddingVertical: 24,
+    alignItems: 'center',
+    paddingVertical: 28,
+    paddingHorizontal: 16,
   },
-  container: {
+  cardPrincipal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
     paddingHorizontal: 28,
-    maxWidth: 520,
+    paddingVertical: 32,
+    maxWidth: 480,
     width: '100%',
-    alignSelf: 'center',
-    gap: 16,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 4,
+    gap: 18,
   },
   header: {
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
     marginBottom: 4,
   },
   logo: {
-    width: 125,
-    height: 125,
-    marginBottom: 4,
+    width: 120,
+    height: 120,
+    marginBottom: 2,
   },
   titulo: {
     fontSize: 28,
@@ -375,7 +395,7 @@ const styles = StyleSheet.create({
   },
   subtitulo: {
     fontSize: 14,
-    color: '#616161',
+    color: '#6B7280',
     fontWeight: '500',
   },
   form: {
@@ -394,7 +414,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 15,
-    color: '#1A1A1A',
+    color: '#111827',
     backgroundColor: '#F9FAFB',
   },
   filaEnlaces: {
@@ -447,7 +467,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   botonPresionado: {
-    opacity: 0.88,
+    backgroundColor: '#1B5E20',
   },
   botonDisabled: {
     opacity: 0.6,
@@ -458,7 +478,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.3,
   },
-  // ─── Tarjeta QR Web ──────────────────────────────────────
+  // ─── Tarjeta QR Exclusiva de Escritorio ──────────────────
   cardQrWeb: {
     backgroundColor: '#F8FAF8',
     borderColor: '#E2E8F0',
@@ -509,8 +529,8 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
   },
   qrImagen: {
-    width: 130,
-    height: 130,
+    width: 120,
+    height: 120,
   },
   qrPuntos: {
     flex: 1,
@@ -552,6 +572,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 12,
     color: '#9CA3AF',
-    marginTop: 4,
+    marginTop: 2,
   },
 });
