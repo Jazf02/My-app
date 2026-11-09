@@ -57,22 +57,59 @@ export function generarTextoWhatsAppSemana(
 /**
  * Abre la app de WhatsApp con el mensaje formateado.
  * Compatible con iOS Safari, PWA pantalla de inicio, Android y PC Web.
+ * Previene que la PWA de iOS se congele o descargue la vista.
  */
 export async function compartirPorWhatsApp(mensaje: string): Promise<boolean> {
   const urlUniversal = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
 
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     try {
-      const opened = window.open(urlUniversal, '_blank');
+      const esStandalone =
+        Boolean(
+          (window.navigator as any)?.standalone === true ||
+          (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches)
+        );
+
+      // En iOS PWA en pantalla de inicio, usar whatsapp:// mediante link seguro
+      if (esStandalone) {
+        const a = document.createElement('a');
+        a.href = `whatsapp://send?text=${encodeURIComponent(mensaje)}`;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          try {
+            document.body.removeChild(a);
+          } catch {}
+        }, 500);
+        return true;
+      }
+
+      // En navegador estándar (Chrome, Safari, Edge)
+      const opened = window.open(urlUniversal, '_blank', 'noopener,noreferrer');
       if (opened) return true;
-      window.location.href = urlUniversal;
+
+      // Fallback con elemento <a> sin reescribir window.location.href
+      const a = document.createElement('a');
+      a.href = urlUniversal;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(a);
+        } catch {}
+      }, 500);
       return true;
-    } catch {
-      window.location.href = urlUniversal;
-      return true;
+    } catch (e) {
+      console.warn('[WhatsApp] Error al abrir:', e);
+      return false;
     }
   }
 
+  // En Android nativo o iOS nativo
   try {
     const urlApp = `whatsapp://send?text=${encodeURIComponent(mensaje)}`;
     const puedeAbrir = await Linking.canOpenURL(urlApp);
@@ -123,6 +160,7 @@ export async function copiarAlPortapapeles(texto: string): Promise<boolean> {
 /**
  * Invoca el menú nativo de Compartir del sistema operativo (iOS Share Sheet / Android Share / Web Share API).
  * Permite enviar por WhatsApp, Correo, Mensajes, AirDrop o Guardar en Archivos.
+ * Protegido contra bloqueos y congelamientos en iOS PWA.
  */
 export async function compartirReporteNativo({
   titulo,
@@ -138,36 +176,54 @@ export async function compartirReporteNativo({
   // 1. Web Share API (Safari iOS PWA, Android Chrome, Edge)
   if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
     try {
-      // Si hay archivo CSV y el navegador soporta compartir archivos reales
+      const esStandalone =
+        typeof window !== 'undefined' &&
+        Boolean(
+          (window.navigator as any)?.standalone === true ||
+          (typeof window.matchMedia === 'function' && window.matchMedia('(display-mode: standalone)').matches)
+        );
+
+      // En iOS PWA no pasar archivos Blob crudos para evitar que WebKit congele la memoria
       if (
+        !esStandalone &&
         contenidoCSV &&
         typeof (navigator as any).canShare === 'function' &&
         typeof File !== 'undefined'
       ) {
-        const file = new File([contenidoCSV], nombreArchivo || 'Reporte_AgroGamez.csv', {
-          type: 'text/csv;charset=utf-8;',
-        });
-        if ((navigator as any).canShare({ files: [file] })) {
-          await (navigator as any).share({
-            title: titulo,
-            text: texto,
-            files: [file],
+        try {
+          const file = new File([contenidoCSV], nombreArchivo || 'Reporte_AgroGamez.csv', {
+            type: 'text/csv;charset=utf-8;',
           });
-          return { compartido: true };
+          if ((navigator as any).canShare({ files: [file] })) {
+            await (navigator as any).share({
+              title: titulo,
+              files: [file],
+            });
+            if (typeof window !== 'undefined' && window.focus) window.focus();
+            return { compartido: true };
+          }
+        } catch {
+          // Continuar con compartir texto si falla el archivo
         }
       }
 
-      // Compartir texto si no soporta archivos directamente
+      // Compartir texto de forma limpia y confiable
       await (navigator as any).share({
         title: titulo,
         text: texto,
       });
+
+      // Restaurar el foco en el viewport para prevenir touch events bloqueados
+      if (typeof window !== 'undefined' && window.focus) {
+        window.focus();
+      }
+
       return { compartido: true };
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        return { compartido: true }; // Cancelado por el usuario deliberadamente
+        return { compartido: true }; // Cancelación normal del usuario
       }
-      console.warn('[Exportar] Web Share Sheet cancelado o no disponible:', err);
+      console.warn('[Exportar] Web Share cancelado o no disponible:', err);
     }
   }
 
@@ -184,7 +240,7 @@ export async function compartirReporteNativo({
     }
   }
 
-  // 3. Si no hay share sheet disponible (ej. PC web tradicional), intentar copiar
+  // 3. Fallback en PC: copiar al portapapeles
   const copiado = await copiarAlPortapapeles(texto);
   return { compartido: copiado };
 }
@@ -423,7 +479,11 @@ export async function generarPDF(resumen: unknown): Promise<string> {
 
 // ─── MEJORA 9: Exportación Completa (6 Secciones) ─────────────
 export interface ExportarCompletoInput {
-  semana: Semana;
+  periodoEtiqueta?: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  nombreArchivo?: string;
+  semana?: Semana;
   trabajadores: Trabajador[];
   diasTrabajados: DiaTrabajado[];
   adelantos: Adelanto[];
@@ -433,23 +493,211 @@ export interface ExportarCompletoInput {
     empacadas: number;
     descarte: number;
   };
+  totales?: {
+    nominaBruta: number;
+    totalAdelantos: number;
+    totalNeto: number;
+  };
 }
 
 /**
- * Genera el archivo CSV con las 6 secciones requeridas por MEJORA 9.
+ * Genera el texto en formato legible con emojis para compartir por WhatsApp un período arbitrario (semana, mes, año, rango).
+ */
+export function generarTextoWhatsAppPeriodo(input: {
+  periodoEtiqueta: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  resumenes: ItemPlanillaExport[];
+  cosecha?: { cortadas: number; empacadas: number; descarte: number };
+}): string {
+  const { periodoEtiqueta, fechaInicio, fechaFin, resumenes, cosecha } = input;
+  let texto = `🌾 *AGROGÁMEZ — Reporte de Pago y Producción* 🌾\n`;
+  texto += `📅 *Período:* ${periodoEtiqueta}\n`;
+  if (fechaInicio && fechaFin) {
+    texto += `🗓️ *Fechas:* ${fechaInicio} al ${fechaFin}\n`;
+  }
+  texto += `----------------------------------------\n\n`;
+
+  let granTotalGanado = 0;
+  let granTotalAdelantos = 0;
+  let granTotalAPagar = 0;
+
+  if (resumenes.length === 0) {
+    texto += `_No se registraron jornadas en este período._\n\n`;
+  } else {
+    resumenes.forEach((item, index) => {
+      const { trabajador, calculo } = item;
+      granTotalGanado += calculo.totalGanado;
+      granTotalAdelantos += calculo.totalAdelantos;
+      granTotalAPagar += calculo.totalAPagar;
+
+      texto += `${index + 1}. *${trabajador.nombre}*\n`;
+      texto += `   • Días trabajados: ${calculo.diasPresentes} día(s)\n`;
+      texto += `   • Total ganado: ${formatearMoneda(calculo.totalGanado)}\n`;
+      if (calculo.totalAdelantos > 0) {
+        texto += `   • Adelantos: -${formatearMoneda(calculo.totalAdelantos)}\n`;
+      }
+      texto += `   👉 *Neto a pagar: ${formatearMoneda(calculo.totalAPagar)}*\n\n`;
+    });
+  }
+
+  texto += `----------------------------------------\n`;
+  texto += `💰 *TOTALES CONSOLIDADOS:* \n`;
+  texto += `• Total Ganado Bruto: ${formatearMoneda(granTotalGanado)}\n`;
+  texto += `• Total Adelantos: -${formatearMoneda(granTotalAdelantos)}\n`;
+  texto += `💵 *GRAN TOTAL NETO: ${formatearMoneda(granTotalAPagar)}*\n`;
+
+  if (cosecha && (cosecha.cortadas > 0 || cosecha.empacadas > 0)) {
+    const ef =
+      cosecha.cortadas > 0
+        ? ((cosecha.empacadas / cosecha.cortadas) * 100).toFixed(1)
+        : '0.0';
+    texto += `\n📦 *PRODUCCIÓN AGRÍCOLA:* \n`;
+    texto += `• Cortadas: ${cosecha.cortadas} cajas\n`;
+    texto += `• Empacadas: ${cosecha.empacadas} cajas\n`;
+    texto += `• Descarte: ${cosecha.descarte} cajas (${ef}% aprovechable)\n`;
+  }
+
+  texto += `----------------------------------------\n`;
+  texto += `_Reporte generado automáticamente por AgroGámez App._`;
+  return texto;
+}
+
+/**
+ * Genera el documento HTML imprimible/guardable en PDF para cualquier período seleccionado.
+ */
+export function generarHTMLPlanillaPeriodo(input: {
+  periodoEtiqueta: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  resumenes: ItemPlanillaExport[];
+  cosecha?: { cortadas: number; empacadas: number; descarte: number };
+}): string {
+  const { periodoEtiqueta, fechaInicio, fechaFin, resumenes, cosecha } = input;
+
+  let granTotalGanado = 0;
+  let granTotalAdelantos = 0;
+  let granTotalAPagar = 0;
+
+  const filas = resumenes.map((item, idx) => {
+    const { trabajador, calculo } = item;
+    granTotalGanado += calculo.totalGanado;
+    granTotalAdelantos += calculo.totalAdelantos;
+    granTotalAPagar += calculo.totalAPagar;
+
+    return `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: center;">${idx + 1}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; font-weight: bold;">${trabajador.nombre}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: center;">${calculo.diasPresentes}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: right;">${formatearMoneda(calculo.totalGanado)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: right; color: #E53E3E;">-${formatearMoneda(calculo.totalAdelantos)}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #E2E8F0; text-align: right; font-weight: bold; color: #2F855A;">${formatearMoneda(calculo.totalAPagar)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const seccionCosecha = cosecha && (cosecha.cortadas > 0 || cosecha.empacadas > 0)
+    ? `
+      <div style="background-color: #F0FDF4; border: 1px solid #BBF7D0; padding: 12px 16px; border-radius: 8px; margin-bottom: 25px;">
+        <h3 style="margin: 0 0 6px 0; color: #166534; font-size: 14px;">📦 Producción Agrícola Registrada</h3>
+        <p style="margin: 0; font-size: 13px; color: #15803D;">
+          Cortadas: <strong>${cosecha.cortadas}</strong> cajas |
+          Empacadas: <strong>${cosecha.empacadas}</strong> cajas |
+          Descarte: <strong>${cosecha.descarte}</strong> cajas
+        </p>
+      </div>
+    `
+    : '';
+
+  return `
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+      <meta charset="UTF-8">
+      <title>AgroGámez — ${periodoEtiqueta}</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #2D3748; margin: 24px; line-height: 1.5; }
+        .header { text-align: center; margin-bottom: 25px; border-bottom: 2px solid #2F855A; padding-bottom: 15px; }
+        .header h1 { margin: 0; color: #2F855A; font-size: 24px; }
+        .header p { margin: 4px 0 0; color: #718096; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+        th { background-color: #F7FAFC; padding: 12px 10px; text-align: left; font-size: 12px; font-weight: bold; color: #4A5568; border-bottom: 2px solid #E2E8F0; }
+        .totals { background-color: #EDF2F7; padding: 16px; border-radius: 8px; font-size: 14px; margin-bottom: 25px; }
+        .totals-row { display: flex; justify-content: space-between; padding: 4px 0; }
+        .totals-grand { font-size: 18px; font-weight: bold; color: #2F855A; border-top: 1px solid #CBD5E0; padding-top: 8px; margin-top: 6px; }
+        .footer { text-align: center; font-size: 11px; color: #A0AEC0; margin-top: 30px; }
+        @media print {
+          body { margin: 0; }
+          .no-print { display: none; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>🌾 AGROGÁMEZ</h1>
+        <p>Comprobante Oficial de Nómina y Producción</p>
+        <p><strong>${periodoEtiqueta}</strong>${fechaInicio && fechaFin ? ` (${fechaInicio} al ${fechaFin})` : ''}</p>
+      </div>
+
+      ${seccionCosecha}
+
+      <table>
+        <thead>
+          <tr>
+            <th style="text-align: center;">#</th>
+            <th>Trabajador</th>
+            <th style="text-align: center;">Días</th>
+            <th style="text-align: right;">Total Ganado</th>
+            <th style="text-align: right;">Adelantos</th>
+            <th style="text-align: right;">Neto a Pagar</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filas || '<tr><td colspan="6" style="text-align:center; padding:15px;">Sin jornadas registradas en este período</td></tr>'}
+        </tbody>
+      </table>
+
+      <div class="totals">
+        <div class="totals-row"><span>Total Ganado Bruto:</span> <strong>${formatearMoneda(granTotalGanado)}</strong></div>
+        <div class="totals-row"><span>Total Adelantos:</span> <strong style="color: #E53E3E;">-${formatearMoneda(granTotalAdelantos)}</strong></div>
+        <div class="totals-row totals-grand"><span>Gran Total a Pagar:</span> <span>${formatearMoneda(granTotalAPagar)}</span></div>
+      </div>
+
+      <div class="footer">
+        <p>Documento oficial emitido por AgroGámez — Sistema Integral Agrícola (Offline-First)</p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+/**
+ * Genera el archivo CSV con las 6 secciones requeridas respetando estrictamente el período seleccionado.
+ * Añade marca BOM UTF-8 (\uFEFF) para visualización perfecta en Microsoft Excel.
  */
 export function generarReporteCompletoCSV(input: ExportarCompletoInput): string {
-  const { semana, trabajadores, diasTrabajados, adelantos, resumenes, cosecha } = input;
+  const { trabajadores, diasTrabajados, adelantos, resumenes, cosecha } = input;
 
-  // Formato periodo exacto: "Semana 19-25 oct"
-  const dIni = new Date(semana.fecha_inicio + 'T00:00:00');
-  const dFin = new Date(semana.fecha_fin + 'T00:00:00');
-  const mesStr = dIni.toLocaleDateString('es-HN', { month: 'short' });
-  const periodoStr = `Semana ${dIni.getDate()}-${dFin.getDate()} ${mesStr}`;
+  const ini = input.fechaInicio || input.semana?.fecha_inicio || '';
+  const fin = input.fechaFin || input.semana?.fecha_fin || '';
+  let periodoStr = input.periodoEtiqueta || '';
+  if (!periodoStr && input.semana) {
+    const dIni = new Date(input.semana.fecha_inicio + 'T00:00:00');
+    const dFin = new Date(input.semana.fecha_fin + 'T00:00:00');
+    const mesStr = dIni.toLocaleDateString('es-HN', { month: 'short' });
+    periodoStr = `Semana ${dIni.getDate()}-${dFin.getDate()} ${mesStr}`;
+  } else if (!periodoStr) {
+    periodoStr = ini && fin ? `Periodo ${ini} al ${fin}` : 'Historial Completo';
+  }
   const hoyStr = hoyISO();
 
-  let csv = `=== 1. ENCABEZADO ===\n`;
+  // \uFEFF asegura compatibilidad con acentos y monedas en Microsoft Excel
+  let csv = `\uFEFF=== 1. ENCABEZADO ===\n`;
   csv += `Periodo,${periodoStr}\n`;
+  if (ini && fin) {
+    csv += `Rango de Fechas,${ini} al ${fin}\n`;
+  }
   csv += `Fecha de Exportacion,${hoyStr}\n\n`;
 
   csv += `=== 2. TABLA DE ASISTENCIA ===\n`;
@@ -503,10 +751,14 @@ export function generarReporteCompletoCSV(input: ExportarCompletoInput): string 
 
 /**
  * Guarda el archivo CSV en el sistema de archivos local y lo comparte.
+ * Compatible con nombres de archivo por período y descarga garantizada en Web/iOS.
  */
 export async function guardarYCompartirReporteCSV(input: ExportarCompletoInput): Promise<string> {
   const contenido = generarReporteCompletoCSV(input);
-  const nombreArchivo = `Reporte_${input.semana.fecha_inicio}.csv`;
+  const etiquetaLimpia = (input.periodoEtiqueta || input.semana?.fecha_inicio || 'Reporte')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .substring(0, 30);
+  const nombreArchivo = input.nombreArchivo || `AgroGamez_${etiquetaLimpia}.csv`;
 
   if (Platform.OS === 'web') {
     if (typeof window !== 'undefined' && typeof document !== 'undefined') {
@@ -515,10 +767,15 @@ export async function guardarYCompartirReporteCSV(input: ExportarCompletoInput):
       const link = document.createElement('a');
       link.href = url;
       link.download = nombreArchivo;
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => {
+        try {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch {}
+      }, 5000);
     }
     return nombreArchivo;
   }
@@ -534,12 +791,12 @@ export async function guardarYCompartirReporteCSV(input: ExportarCompletoInput):
 
   try {
     await Share.share({
-      title: `Reporte ${input.semana.fecha_inicio}`,
+      title: input.periodoEtiqueta || `Reporte AgroGámez`,
       message: contenido,
       url: rutaCompleta,
     });
   } catch (err) {
-    console.warn('[Exportar] Aviso al compartir:', err);
+    console.warn('[Exportar] Aviso al compartir nativo:', err);
   }
 
   return rutaCompleta;

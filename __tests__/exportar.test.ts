@@ -6,7 +6,11 @@ import {
   compartirPorWhatsApp,
   copiarAlPortapapeles,
   compartirReporteNativo,
+  generarTextoWhatsAppPeriodo,
+  generarHTMLPlanillaPeriodo,
+  generarReporteCompletoCSV,
 } from '../lib/exportar';
+import { webObtenerDatosExportacionPeriodo } from '../database/webStorage';
 import type { Semana, Trabajador, Lote, Cosecha, Gasto } from '../types/domain';
 import type { ResultadoPagoSemanal } from '../lib/calculos';
 import type { ResumenRendimientoLote } from '../lib/rendimiento';
@@ -112,5 +116,106 @@ describe('lib/exportar.ts — Módulo de Exportación', () => {
       texto: 'Mensaje Test',
     });
     expect(typeof res.compartido).toBe('boolean');
+  });
+
+  test('generarTextoWhatsAppPeriodo formatea correctamente meses, años y rangos', () => {
+    const textoMes = generarTextoWhatsAppPeriodo({
+      periodoEtiqueta: 'Mes de Octubre 2026',
+      fechaInicio: '2026-10-01',
+      fechaFin: '2026-10-31',
+      resumenes: [{ trabajador: mockTrabajador, calculo: mockCalculo }],
+      cosecha: { cortadas: 500, empacadas: 450, descarte: 50 },
+    });
+
+    expect(textoMes).toContain('Mes de Octubre 2026');
+    expect(textoMes).toContain('Juan Pérez');
+    expect(textoMes).toContain('L. 1,050.00');
+    expect(textoMes).toContain('450 cajas');
+    expect(textoMes).toContain('90.0% aprovechable');
+  });
+
+  test('generarHTMLPlanillaPeriodo genera el comprobante imprimible con totales', () => {
+    const html = generarHTMLPlanillaPeriodo({
+      periodoEtiqueta: 'Año 2026',
+      fechaInicio: '2026-01-01',
+      fechaFin: '2026-12-31',
+      resumenes: [{ trabajador: mockTrabajador, calculo: mockCalculo }],
+      cosecha: { cortadas: 1000, empacadas: 900, descarte: 100 },
+    });
+
+    expect(html).toContain('<!DOCTYPE html>');
+    expect(html).toContain('Año 2026');
+    expect(html).toContain('Juan Pérez');
+    expect(html).toContain('L. 1,050.00');
+    expect(html).toContain('900');
+  });
+
+  test('Filtros estrictos de período en webObtenerDatosExportacionPeriodo', async () => {
+    const datosOctubre = await webObtenerDatosExportacionPeriodo({
+      tipo: 'mes',
+      fechaInicio: '2026-10-01',
+      fechaFin: '2026-10-31',
+      periodoEtiqueta: 'Mes de Octubre 2026',
+    });
+
+    expect(datosOctubre.periodoEtiqueta).toBe('Mes de Octubre 2026');
+    expect(datosOctubre.fechaInicio).toBe('2026-10-01');
+    expect(datosOctubre.fechaFin).toBe('2026-10-31');
+    expect(Array.isArray(datosOctubre.diasTrabajados)).toBe(true);
+    expect(Array.isArray(datosOctubre.adelantos)).toBe(true);
+    expect(Array.isArray(datosOctubre.resumenes)).toBe(true);
+
+    // Asegurar que no contenga fechas fuera de octubre
+    datosOctubre.diasTrabajados.forEach((d) => {
+      expect(d.fecha >= '2026-10-01' && d.fecha <= '2026-10-31').toBe(true);
+    });
+
+    datosOctubre.adelantos.forEach((a) => {
+      expect(a.fecha >= '2026-10-01' && a.fecha <= '2026-10-31').toBe(true);
+    });
+  });
+
+  test('CSV completo con BOM UTF-8 y 6 secciones', () => {
+    const csv = generarReporteCompletoCSV({
+      periodoEtiqueta: 'Período Personalizado Especial',
+      fechaInicio: '2026-10-01',
+      fechaFin: '2026-10-15',
+      trabajadores: [mockTrabajador],
+      diasTrabajados: [{
+        id: 'dia-1',
+        semana_id: 'sem-1',
+        trabajador_id: mockTrabajador.id,
+        fecha: '2026-10-05',
+        presente: 1,
+        tarifa_diaria: 250,
+      }],
+      adelantos: [{
+        id: 'ad-1',
+        semana_id: 'sem-1',
+        trabajador_id: mockTrabajador.id,
+        monto: 100,
+        concepto: 'Almuerzo',
+        fecha: '2026-10-06',
+        revertido: 0,
+      }],
+      resumenes: [{ trabajador: mockTrabajador, calculo: mockCalculo }],
+      cosecha: { cortadas: 100, empacadas: 90, descarte: 10 },
+      totales: { nominaBruta: 1250, totalAdelantos: 100, totalNeto: 1150 },
+    });
+
+    // Validar marca BOM UTF-8 al inicio
+    expect(csv.startsWith('\uFEFF')).toBe(true);
+    // Validar las 6 secciones exactas
+    expect(csv).toContain('=== 1. ENCABEZADO ===');
+    expect(csv).toContain('=== 2. TABLA DE ASISTENCIA ===');
+    expect(csv).toContain('=== 3. TABLA DE ADELANTOS ===');
+    expect(csv).toContain('=== 4. RESUMEN POR TRABAJADOR ===');
+    expect(csv).toContain('=== 5. PRODUCCION DE COSECHA ===');
+    expect(csv).toContain('=== 6. TOTALES GENERALES ===');
+    // Validar datos específicos
+    expect(csv).toContain('Período Personalizado Especial');
+    expect(csv).toContain('Juan Pérez');
+    expect(csv).toContain('Almuerzo');
+    expect(csv).toContain('90.0%');
   });
 });

@@ -21,6 +21,9 @@ import {
   webObtenerResumenTrabajadorSemana,
   webRevertirAdelanto,
   webObtenerMetricasPeriodo,
+  webObtenerDatosExportacionPeriodo,
+  type ParametrosFiltroExport,
+  type ResultadoExportacionPeriodo,
 } from './webStorage';
 
 function generarUUID(): string {
@@ -410,5 +413,117 @@ export async function obtenerMetricasPeriodo(
     cajasDescarte,
     porcentajeAprovechable,
     porTrabajador: filasTrabajadores,
+  };
+}
+
+export { ParametrosFiltroExport, ResultadoExportacionPeriodo };
+
+export async function obtenerDatosExportacionPeriodo(
+  params: ParametrosFiltroExport
+): Promise<ResultadoExportacionPeriodo> {
+  if (Platform.OS === 'web') return webObtenerDatosExportacionPeriodo(params);
+  const db = await getDB();
+
+  let fechaInicio = params.fechaInicio || '';
+  let fechaFin = params.fechaFin || '';
+
+  if (params.tipo === 'todo') {
+    const minMax = await db.getFirstAsync<{ minF: string; maxF: string }>(
+      `SELECT MIN(fecha) as minF, MAX(fecha) as maxF FROM dias_trabajados;`
+    );
+    fechaInicio = minMax?.minF || hoyISO();
+    fechaFin = minMax?.maxF || hoyISO();
+  }
+
+  const esTodo = params.tipo === 'todo';
+  const dias = await db.getAllAsync<DiaTrabajado>(
+    esTodo
+      ? `SELECT * FROM dias_trabajados ORDER BY fecha ASC;`
+      : `SELECT * FROM dias_trabajados WHERE fecha >= ? AND fecha <= ? ORDER BY fecha ASC;`,
+    esTodo ? [] : [fechaInicio, fechaFin]
+  );
+
+  const adelantos = await db.getAllAsync<Adelanto>(
+    esTodo
+      ? `SELECT * FROM adelantos WHERE revertido = 0 ORDER BY fecha ASC;`
+      : `SELECT * FROM adelantos WHERE fecha >= ? AND fecha <= ? AND revertido = 0 ORDER BY fecha ASC;`,
+    esTodo ? [] : [fechaInicio, fechaFin]
+  );
+
+  const todosTrabajadores = await db.getAllAsync<Trabajador>(
+    `SELECT * FROM trabajadores ORDER BY nombre ASC;`
+  );
+
+  const idsConActividad = new Set<string>();
+  dias.forEach((d) => idsConActividad.add(d.trabajador_id));
+  adelantos.forEach((a) => idsConActividad.add(a.trabajador_id));
+
+  const trabajadoresRelevantes = todosTrabajadores.filter(
+    (t) => idsConActividad.has(t.id) || (idsConActividad.size === 0 && t.activo === 1)
+  );
+
+  let granTotalGanado = 0;
+  let granTotalAdelantos = 0;
+
+  const resumenes = trabajadoresRelevantes.map((t) => {
+    const diasT = dias.filter((d) => d.trabajador_id === t.id);
+    const adelantosT = adelantos.filter((a) => a.trabajador_id === t.id);
+
+    const diasPresentes = diasT.filter((d) => d.presente === 1).length;
+    const diasAusentes = diasT.filter((d) => d.presente === 0).length;
+
+    const totalGanado = diasT.reduce((acc, d) => {
+      if (d.presente !== 1) return acc;
+      const tarifa = d.tarifa_diaria ?? t.tarifa_diaria_default ?? 250;
+      return acc + tarifa;
+    }, 0);
+
+    const totalAdelantos = adelantosT.reduce((acc, a) => acc + (a.monto || 0), 0);
+    const totalAPagar = totalGanado - totalAdelantos;
+
+    granTotalGanado += totalGanado;
+    granTotalAdelantos += totalAdelantos;
+
+    return {
+      trabajador: t,
+      calculo: {
+        diasPresentes,
+        diasAusentes,
+        totalGanado,
+        totalAdelantos,
+        totalAPagar,
+      },
+    };
+  });
+
+  const resCosecha = await db.getFirstAsync<{
+    cortadas: number | null;
+    empacadas: number | null;
+    descarte: number | null;
+  }>(
+    esTodo
+      ? `SELECT SUM(cajas_cortadas) as cortadas, SUM(cajas_empacadas) as empacadas, SUM(cajas_descarte) as descarte FROM cosechas;`
+      : `SELECT SUM(cajas_cortadas) as cortadas, SUM(cajas_empacadas) as empacadas, SUM(cajas_descarte) as descarte FROM cosechas WHERE fecha >= ? AND fecha <= ?;`,
+    esTodo ? [] : [fechaInicio, fechaFin]
+  );
+
+  return {
+    periodoEtiqueta: params.periodoEtiqueta || `${fechaInicio} al ${fechaFin}`,
+    fechaInicio,
+    fechaFin,
+    trabajadores: trabajadoresRelevantes,
+    diasTrabajados: dias,
+    adelantos,
+    resumenes,
+    cosecha: {
+      cortadas: resCosecha?.cortadas || 0,
+      empacadas: resCosecha?.empacadas || 0,
+      descarte: resCosecha?.descarte || 0,
+    },
+    totales: {
+      nominaBruta: granTotalGanado,
+      totalAdelantos: granTotalAdelantos,
+      totalNeto: granTotalGanado - granTotalAdelantos,
+    },
   };
 }

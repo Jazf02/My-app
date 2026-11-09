@@ -457,6 +457,155 @@ export async function webObtenerMetricasPeriodo(
   };
 }
 
+export interface ParametrosFiltroExport {
+  tipo: 'semana' | 'mes' | 'ano' | 'todo' | 'personalizado';
+  fechaInicio?: string;
+  fechaFin?: string;
+  periodoEtiqueta?: string;
+}
+
+export interface ResultadoExportacionPeriodo {
+  periodoEtiqueta: string;
+  fechaInicio: string;
+  fechaFin: string;
+  trabajadores: Trabajador[];
+  diasTrabajados: DiaTrabajado[];
+  adelantos: Adelanto[];
+  resumenes: Array<{
+    trabajador: Trabajador;
+    calculo: {
+      diasPresentes: number;
+      diasAusentes: number;
+      totalGanado: number;
+      totalAdelantos: number;
+      totalAPagar: number;
+    };
+  }>;
+  cosecha: {
+    cortadas: number;
+    empacadas: number;
+    descarte: number;
+  };
+  totales: {
+    nominaBruta: number;
+    totalAdelantos: number;
+    totalNeto: number;
+  };
+}
+
+export async function webObtenerDatosExportacionPeriodo(
+  params: ParametrosFiltroExport
+): Promise<ResultadoExportacionPeriodo> {
+  const todosDias = getList<DiaTrabajado>('dias_trabajados');
+  const todosAdelantos = getList<Adelanto>('adelantos');
+  const todasCosechas = getList<Cosecha>('cosechas');
+  const todosTrabajadores = await webObtenerTrabajadores(false);
+
+  let fechaInicio = params.fechaInicio || '';
+  let fechaFin = params.fechaFin || '';
+
+  if (params.tipo === 'todo') {
+    const fechas = [
+      ...todosDias.map((d) => d.fecha),
+      ...todosAdelantos.map((a) => a.fecha),
+      ...todasCosechas.map((c) => c.fecha),
+    ].filter(Boolean).sort();
+
+    fechaInicio = fechas.length > 0 ? fechas[0] : hoyISO();
+    fechaFin = fechas.length > 0 ? fechas[fechas.length - 1] : hoyISO();
+  }
+
+  const esTodo = params.tipo === 'todo';
+  const diasFiltrados = esTodo
+    ? todosDias
+    : todosDias.filter((d) => d.fecha >= fechaInicio && d.fecha <= fechaFin);
+
+  const adelantosFiltrados = esTodo
+    ? todosAdelantos.filter((a) => a.revertido !== 1)
+    : todosAdelantos.filter(
+        (a) => a.fecha >= fechaInicio && a.fecha <= fechaFin && a.revertido !== 1
+      );
+
+  const cosechasFiltradas = esTodo
+    ? todasCosechas
+    : todasCosechas.filter((c) => c.fecha >= fechaInicio && c.fecha <= fechaFin);
+
+  const idsConActividad = new Set<string>();
+  diasFiltrados.forEach((d) => idsConActividad.add(d.trabajador_id));
+  adelantosFiltrados.forEach((a) => idsConActividad.add(a.trabajador_id));
+
+  const trabajadoresRelevantes = todosTrabajadores.filter(
+    (t) => idsConActividad.has(t.id) || (idsConActividad.size === 0 && t.activo === 1)
+  );
+
+  let granTotalGanado = 0;
+  let granTotalAdelantos = 0;
+
+  const resumenes = trabajadoresRelevantes.map((t) => {
+    const diasT = diasFiltrados.filter((d) => d.trabajador_id === t.id);
+    const adelantosT = adelantosFiltrados.filter((a) => a.trabajador_id === t.id);
+
+    const diasPresentes = diasT.filter((d) => d.presente === 1).length;
+    const diasAusentes = diasT.filter((d) => d.presente === 0).length;
+
+    const totalGanado = diasT.reduce((acc, d) => {
+      if (d.presente !== 1) return acc;
+      const tarifa = d.tarifa_diaria ?? t.tarifa_diaria_default ?? 250;
+      return acc + tarifa;
+    }, 0);
+
+    const totalAdelantos = adelantosT.reduce((acc, a) => acc + (a.monto || 0), 0);
+    const totalAPagar = totalGanado - totalAdelantos;
+
+    granTotalGanado += totalGanado;
+    granTotalAdelantos += totalAdelantos;
+
+    return {
+      trabajador: t,
+      calculo: {
+        diasPresentes,
+        diasAusentes,
+        totalGanado,
+        totalAdelantos,
+        totalAPagar,
+      },
+    };
+  });
+
+  const cortadas = cosechasFiltradas.reduce(
+    (acc, c) => acc + (c.cajas_cortadas ?? (c as any).cajasCortadas ?? 0),
+    0
+  );
+  const empacadas = cosechasFiltradas.reduce(
+    (acc, c) => acc + (c.cajas_empacadas ?? (c as any).cajasEmpacadas ?? 0),
+    0
+  );
+  const descarte = cosechasFiltradas.reduce(
+    (acc, c) => acc + (c.cajas_descarte ?? (c as any).cajasDescarte ?? 0),
+    0
+  );
+
+  return {
+    periodoEtiqueta: params.periodoEtiqueta || `${fechaInicio} al ${fechaFin}`,
+    fechaInicio,
+    fechaFin,
+    trabajadores: trabajadoresRelevantes,
+    diasTrabajados: diasFiltrados,
+    adelantos: adelantosFiltrados,
+    resumenes,
+    cosecha: {
+      cortadas,
+      empacadas,
+      descarte,
+    },
+    totales: {
+      nominaBruta: granTotalGanado,
+      totalAdelantos: granTotalAdelantos,
+      totalNeto: granTotalGanado - granTotalAdelantos,
+    },
+  };
+}
+
 // ─── LOTES (WEB) ─────────────────────────────────────────────
 export async function webCrearLote(input: CrearLoteDTO): Promise<Lote> {
   const lotes = getList<Lote>('lotes');
