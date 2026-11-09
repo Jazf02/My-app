@@ -31,6 +31,10 @@ import {
   compartirPorWhatsApp,
   generarReporteCompletoCSV,
   guardarYCompartirReporteCSV,
+  compartirReporteNativo,
+  copiarAlPortapapeles,
+  imprimirReporteHTML,
+  generarHTMLPlanillaSemanal,
   type ItemPlanillaExport,
   type ExportarCompletoInput,
 } from '@/lib/exportar';
@@ -56,6 +60,7 @@ export default function ExportarScreen(): React.JSX.Element {
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
   const [archivoGenerado, setArchivoGenerado] = useState<string | null>(null);
+  const [copiadoExito, setCopiadoExito] = useState(false);
 
   const cargarDatos = useCallback(async () => {
     try {
@@ -139,13 +144,32 @@ export default function ExportarScreen(): React.JSX.Element {
       const ruta = await guardarYCompartirReporteCSV(exportInput);
       setArchivoGenerado(ruta);
       Alert.alert(
-        'Exportación Exitosa',
-        `Se ha generado el archivo correctamente con las 6 secciones completas.`
+        'Archivo CSV Generado',
+        `Se ha descargado el reporte completo (6 secciones) listo para Excel.`
       );
     } catch (err) {
       Alert.alert('Error', 'No se pudo generar el archivo de exportación.');
     } finally {
       setExportando(false);
+    }
+  };
+
+  const handleCompartirGeneral = async () => {
+    if (!semana || !textoWhatsApp) return;
+    try {
+      const res = await compartirReporteNativo({
+        titulo: `Planilla AgroGámez — Semana ${semana.fecha_inicio}`,
+        texto: textoWhatsApp,
+        contenidoCSV: textoCSV,
+        nombreArchivo: `Planilla_${semana.fecha_inicio}.csv`,
+      });
+
+      if (!res.compartido) {
+        // Fallback directo a WhatsApp
+        await compartirPorWhatsApp(textoWhatsApp);
+      }
+    } catch (err) {
+      console.error('[Exportar] Error en compartir general:', err);
     }
   };
 
@@ -155,12 +179,32 @@ export default function ExportarScreen(): React.JSX.Element {
       const exito = await compartirPorWhatsApp(textoWhatsApp);
       if (!exito) {
         Alert.alert(
-          'WhatsApp no disponible',
-          'No pudimos abrir WhatsApp directamente en este dispositivo.'
+          'WhatsApp',
+          'Si no se abre automáticamente, puedes usar el botón "Copiar Resumen" y pegarlo directamente en WhatsApp.'
         );
       }
     } catch (err) {
       console.error('[Exportar] Error:', err);
+    }
+  };
+
+  const handleCopiarPortapapeles = async () => {
+    if (!textoWhatsApp) return;
+    const copiado = await copiarAlPortapapeles(textoWhatsApp);
+    if (copiado) {
+      setCopiadoExito(true);
+      setTimeout(() => setCopiadoExito(false), 3000);
+    } else {
+      Alert.alert('Portapapeles', 'No se pudo copiar automáticamente. Puedes seleccionar el texto abajo.');
+    }
+  };
+
+  const handleImprimirPDF = () => {
+    if (!semana || itemsPlanilla.length === 0) return;
+    const html = generarHTMLPlanillaSemanal(semana, itemsPlanilla);
+    const exito = imprimirReporteHTML(html);
+    if (!exito) {
+      Alert.alert('Impresión', 'La función de impresión no está disponible en este visor.');
     }
   };
 
@@ -173,15 +217,15 @@ export default function ExportarScreen(): React.JSX.Element {
         <Pressable style={styles.btnVolver} onPress={() => router.back()} hitSlop={10}>
           <Text style={styles.btnVolverTexto}>← Volver</Text>
         </Pressable>
-        <Text style={styles.headerTitulo}>Exportar Reporte Completo</Text>
+        <Text style={styles.headerTitulo}>Exportar y Compartir</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.contenido}>
         <View style={styles.tarjetaIntro}>
           <Text style={styles.introEmoji}>📑</Text>
-          <Text style={styles.introTitulo}>Exportación Oficial de Planilla</Text>
+          <Text style={styles.introTitulo}>Opciones de Envío y Exportación</Text>
           <Text style={styles.introTexto}>
-            Genera un archivo con 6 secciones completas: Encabezado, Asistencia diaria, Adelantos, Resumen por trabajador, Producción de cosecha y Totales consolidados.
+            Comparte la planilla oficial con tus socios o trabajadores mediante WhatsApp, menú del sistema, Excel CSV o imprímela en PDF.
           </Text>
         </View>
 
@@ -191,41 +235,64 @@ export default function ExportarScreen(): React.JSX.Element {
           </View>
         ) : (
           <>
-            {/* Botón Principal: Generar Archivo CSV */}
-            <Pressable
-              style={[styles.btnExportarArchivo, exportando && styles.btnDisabled]}
-              onPress={handleExportarArchivo}
-              disabled={exportando}
-            >
-              {exportando ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.btnExportarArchivoTexto}>
-                  📄 Exportar Archivo Completo (CSV)
-                </Text>
-              )}
+            {/* Botón 1: Menú Compartir Nativo (WhatsApp, AirDrop, Correo, etc.) */}
+            <Pressable style={styles.btnCompartirNativo} onPress={handleCompartirGeneral}>
+              <Text style={styles.btnCompartirNativoTexto}>
+                📲 Compartir Planilla (Menú Oficial)
+              </Text>
             </Pressable>
 
-            {archivoGenerado && (
+            {/* Botón 2: Enviar directo por WhatsApp */}
+            <Pressable style={styles.btnWhatsApp} onPress={handleEnviarWhatsApp}>
+              <Text style={styles.btnWhatsAppTexto}>
+                💬 Enviar Resumen por WhatsApp
+              </Text>
+            </Pressable>
+
+            {/* Fila de Acciones Secundarias: Descargar CSV y Copiar */}
+            <View style={styles.filaBotones}>
+              <Pressable
+                style={[styles.btnSecundario, { flex: 1 }]}
+                onPress={handleExportarArchivo}
+                disabled={exportando}
+              >
+                {exportando ? (
+                  <ActivityIndicator color="#1E40AF" size="small" />
+                ) : (
+                  <Text style={styles.btnSecundarioTexto}>📥 Descargar CSV</Text>
+                )}
+              </Pressable>
+
+              <Pressable style={[styles.btnSecundario, { flex: 1 }]} onPress={handleCopiarPortapapeles}>
+                <Text style={styles.btnSecundarioTexto}>📋 Copiar Texto</Text>
+              </Pressable>
+
+              <Pressable style={[styles.btnSecundario, { flex: 1 }]} onPress={handleImprimirPDF}>
+                <Text style={styles.btnSecundarioTexto}>🖨️ Imprimir/PDF</Text>
+              </Pressable>
+            </View>
+
+            {copiadoExito && (
               <View style={styles.bannerExito}>
                 <Text style={styles.bannerExitoTexto}>
-                  ✓ Archivo generado listo para abrir en Excel o compartir.
+                  ✓ ¡Texto copiado al portapapeles! Listo para pegar donde desees.
                 </Text>
               </View>
             )}
 
-            {/* Botón WhatsApp */}
-            <Pressable style={styles.btnWhatsApp} onPress={handleEnviarWhatsApp}>
-              <Text style={styles.btnWhatsAppTexto}>
-                💬 Compartir Resumen por WhatsApp
-              </Text>
-            </Pressable>
+            {archivoGenerado && (
+              <View style={styles.bannerExito}>
+                <Text style={styles.bannerExitoTexto}>
+                  ✓ Archivo Excel (CSV) generado con las 6 secciones completas.
+                </Text>
+              </View>
+            )}
 
             {/* Vista Previa del Archivo de Exportación */}
             <View style={styles.cajaPrevia}>
               <View style={styles.previaHeader}>
                 <Text style={styles.previaTitulo}>
-                  Contenido del archivo (6 secciones completas):
+                  Vista previa de la planilla de pago:
                 </Text>
                 {semana && (
                   <Text style={styles.previaSemana}>
@@ -233,7 +300,7 @@ export default function ExportarScreen(): React.JSX.Element {
                   </Text>
                 )}
               </View>
-              <Text style={styles.mensajeTexto}>{textoCSV}</Text>
+              <Text style={styles.mensajeTexto}>{textoWhatsApp}</Text>
             </View>
           </>
         )}
@@ -304,6 +371,41 @@ const styles = StyleSheet.create({
   centro: {
     padding: 30,
     alignItems: 'center',
+  },
+  btnCompartirNativo: {
+    backgroundColor: '#2E7D32',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#2E7D32',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  btnCompartirNativoTexto: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  filaBotones: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  btnSecundario: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnSecundarioTexto: {
+    color: '#374151',
+    fontSize: 12,
+    fontWeight: '700',
   },
   btnExportarArchivo: {
     backgroundColor: '#1E40AF',

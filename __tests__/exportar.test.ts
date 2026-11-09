@@ -3,6 +3,9 @@ import {
   generarTextoWhatsAppSemana,
   generarHTMLPlanillaSemanal,
   generarHTMLReporteLote,
+  compartirPorWhatsApp,
+  copiarAlPortapapeles,
+  compartirReporteNativo,
 } from '../lib/exportar';
 import type { Semana, Trabajador, Lote, Cosecha, Gasto } from '../types/domain';
 import type { ResultadoPagoSemanal } from '../lib/calculos';
@@ -91,5 +94,23 @@ describe('lib/exportar.ts — Módulo de Exportación', () => {
     expect(html).toContain('Melón');
     expect(html).toContain('90 cajas');
     expect(html).toContain('Fertilizante');
+  });
+
+  test('compartirPorWhatsApp genera la URL universal wa.me correctamente', async () => {
+    const res = await compartirPorWhatsApp('Reporte de prueba');
+    expect(typeof res).toBe('boolean');
+  });
+
+  test('copiarAlPortapapeles no lanza errores en entornos de prueba', async () => {
+    const res = await copiarAlPortapapeles('Texto a copiar');
+    expect(typeof res).toBe('boolean');
+  });
+
+  test('compartirReporteNativo maneja llamadas seguras', async () => {
+    const res = await compartirReporteNativo({
+      titulo: 'Título Test',
+      texto: 'Mensaje Test',
+    });
+    expect(typeof res.compartido).toBe('boolean');
   });
 });

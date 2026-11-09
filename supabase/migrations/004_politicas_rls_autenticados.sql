@@ -29,3 +29,4 @@ CREATE POLICY "acceso_total_lotes" ON public.lotes FOR ALL TO anon, authenticate
 CREATE POLICY "acceso_total_cosechas" ON public.cosechas FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total_gastos" ON public.gastos FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
 CREATE POLICY "acceso_total_periodos" ON public.periodos_cerrados FOR ALL TO anon, authenticated USING (true) WITH CHECK (true);
+

@@ -56,22 +56,158 @@ export function generarTextoWhatsAppSemana(
 
 /**
  * Abre la app de WhatsApp con el mensaje formateado.
+ * Compatible con iOS Safari, PWA pantalla de inicio, Android y PC Web.
  */
 export async function compartirPorWhatsApp(mensaje: string): Promise<boolean> {
-  const url = `whatsapp://send?text=${encodeURIComponent(mensaje)}`;
-  try {
-    const puedeAbrir = await Linking.canOpenURL(url);
-    if (puedeAbrir) {
-      await Linking.openURL(url);
+  const urlUniversal = `https://wa.me/?text=${encodeURIComponent(mensaje)}`;
+
+  if (Platform.OS === 'web' && typeof window !== 'undefined') {
+    try {
+      const opened = window.open(urlUniversal, '_blank');
+      if (opened) return true;
+      window.location.href = urlUniversal;
       return true;
-    } else {
-      // Intentar abrir por la web de WhatsApp si la app nativa no está instalada
-      const webUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensaje)}`;
-      await Linking.openURL(webUrl);
+    } catch {
+      window.location.href = urlUniversal;
       return true;
     }
+  }
+
+  try {
+    const urlApp = `whatsapp://send?text=${encodeURIComponent(mensaje)}`;
+    const puedeAbrir = await Linking.canOpenURL(urlApp);
+    if (puedeAbrir) {
+      await Linking.openURL(urlApp);
+      return true;
+    }
+  } catch {}
+
+  try {
+    await Linking.openURL(urlUniversal);
+    return true;
   } catch (error) {
     console.error('Error al intentar abrir WhatsApp:', error);
+    return false;
+  }
+}
+
+/**
+ * Copia texto directamente al portapapeles en cualquier navegador o entorno web.
+ */
+export async function copiarAlPortapapeles(texto: string): Promise<boolean> {
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      return true;
+    } catch {}
+  }
+
+  // Fallback con elemento textarea para navegadores que restringen clipboard API
+  if (typeof document !== 'undefined') {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = texto;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const copiado = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      return copiado;
+    } catch {}
+  }
+
+  return false;
+}
+
+/**
+ * Invoca el menú nativo de Compartir del sistema operativo (iOS Share Sheet / Android Share / Web Share API).
+ * Permite enviar por WhatsApp, Correo, Mensajes, AirDrop o Guardar en Archivos.
+ */
+export async function compartirReporteNativo({
+  titulo,
+  texto,
+  contenidoCSV,
+  nombreArchivo,
+}: {
+  titulo: string;
+  texto: string;
+  contenidoCSV?: string;
+  nombreArchivo?: string;
+}): Promise<{ compartido: boolean; error?: string }> {
+  // 1. Web Share API (Safari iOS PWA, Android Chrome, Edge)
+  if (typeof navigator !== 'undefined' && typeof (navigator as any).share === 'function') {
+    try {
+      // Si hay archivo CSV y el navegador soporta compartir archivos reales
+      if (
+        contenidoCSV &&
+        typeof (navigator as any).canShare === 'function' &&
+        typeof File !== 'undefined'
+      ) {
+        const file = new File([contenidoCSV], nombreArchivo || 'Reporte_AgroGamez.csv', {
+          type: 'text/csv;charset=utf-8;',
+        });
+        if ((navigator as any).canShare({ files: [file] })) {
+          await (navigator as any).share({
+            title: titulo,
+            text: texto,
+            files: [file],
+          });
+          return { compartido: true };
+        }
+      }
+
+      // Compartir texto si no soporta archivos directamente
+      await (navigator as any).share({
+        title: titulo,
+        text: texto,
+      });
+      return { compartido: true };
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        return { compartido: true }; // Cancelado por el usuario deliberadamente
+      }
+      console.warn('[Exportar] Web Share Sheet cancelado o no disponible:', err);
+    }
+  }
+
+  // 2. En dispositivos nativos (APK Android / iOS)
+  if (Platform.OS !== 'web') {
+    try {
+      await Share.share({
+        title: titulo,
+        message: texto,
+      });
+      return { compartido: true };
+    } catch (err: any) {
+      return { compartido: false, error: err?.message };
+    }
+  }
+
+  // 3. Si no hay share sheet disponible (ej. PC web tradicional), intentar copiar
+  const copiado = await copiarAlPortapapeles(texto);
+  return { compartido: copiado };
+}
+
+/**
+ * Abre una ventana con el HTML listo para imprimir o guardar como PDF en cualquier dispositivo.
+ */
+export function imprimirReporteHTML(html: string): boolean {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+  try {
+    const ventana = window.open('', '_blank');
+    if (!ventana) return false;
+    ventana.document.write(html);
+    ventana.document.close();
+    ventana.focus();
+    setTimeout(() => {
+      try {
+        ventana.print();
+      } catch {}
+    }, 500);
+    return true;
+  } catch (err) {
+    console.error('[Exportar] Error al imprimir:', err);
     return false;
   }
 }

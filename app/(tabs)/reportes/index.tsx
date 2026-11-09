@@ -5,7 +5,7 @@
 // MEJORA 10: Fix CHECK constraint y flujo abierta -> cerrada -> pagada
 // ═══════════════════════════════════════════════════════════
 
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,12 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { BannerEstado } from '@/components/ui/BannerEstado';
+import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
+import {
+  generarTextoWhatsAppSemana,
+  compartirPorWhatsApp,
+  compartirReporteNativo,
+} from '@/lib/exportar';
 import {
   obtenerOCrearSemanaActual,
   obtenerResumenTrabajadorSemana,
@@ -136,8 +142,16 @@ export default function ReportesScreen(): React.JSX.Element {
   useFocusEffect(
     useCallback(() => {
       cargarDatos();
+      ejecutarSincronizacion().catch(() => {});
     }, [cargarDatos])
   );
+
+  useEffect(() => {
+    const unsub = suscribirSyncCompletado(() => {
+      cargarDatos();
+    });
+    return unsub;
+  }, [cargarDatos]);
 
   const totalNominaGanada = desgloseTrabajadores.reduce(
     (acc, item) => acc + item.resumen.totalGanado,
@@ -374,6 +388,35 @@ export default function ReportesScreen(): React.JSX.Element {
     };
   };
 
+  const handleCompartirPlanilla = async () => {
+    if (!semana || desgloseTrabajadores.length === 0) {
+      Alert.alert('Reportes', 'No hay registros de trabajadores en esta semana para compartir.');
+      return;
+    }
+    const items = desgloseTrabajadores.map((d) => ({
+      trabajador: d.trabajador,
+      calculo: d.resumen,
+    }));
+    const texto = generarTextoWhatsAppSemana(semana, items);
+    await compartirReporteNativo({
+      titulo: `Planilla AgroGámez — ${semana.fecha_inicio}`,
+      texto,
+    });
+  };
+
+  const handleWhatsAppRapido = async () => {
+    if (!semana || desgloseTrabajadores.length === 0) {
+      Alert.alert('Reportes', 'No hay registros de trabajadores en esta semana para compartir.');
+      return;
+    }
+    const items = desgloseTrabajadores.map((d) => ({
+      trabajador: d.trabajador,
+      calculo: d.resumen,
+    }));
+    const texto = generarTextoWhatsAppSemana(semana, items);
+    await compartirPorWhatsApp(texto);
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <BannerEstado />
@@ -427,6 +470,16 @@ export default function ReportesScreen(): React.JSX.Element {
                 <View style={styles.bannerNeto}>
                   <Text style={styles.netoTitulo}>Total Neto a Pagar</Text>
                   <Text style={styles.netoMonto}>{formatearMoneda(totalNominaAPagar)}</Text>
+                </View>
+
+                {/* Acciones Rápidas de Compartir Planilla */}
+                <View style={styles.filaAccionesPlanilla}>
+                  <Pressable style={styles.btnCompartirRapido} onPress={handleCompartirPlanilla}>
+                    <Text style={styles.btnCompartirRapidoTexto}>📲 Compartir</Text>
+                  </Pressable>
+                  <Pressable style={styles.btnWhatsAppRapido} onPress={handleWhatsAppRapido}>
+                    <Text style={styles.btnWhatsAppRapidoTexto}>💬 WhatsApp</Text>
+                  </Pressable>
                 </View>
               </View>
 
@@ -560,7 +613,36 @@ export default function ReportesScreen(): React.JSX.Element {
                   <Text style={styles.seccionTitulo}>Historial de Periodos Cerrados</Text>
                   {periodosCerrados.map((p) => {
                     const info = formatearHistorialItem(p);
-                    return (
+                    const handleCompartirPlanilla = async () => {
+    if (!semana || desgloseTrabajadores.length === 0) {
+      Alert.alert('Reportes', 'No hay registros de trabajadores en esta semana para compartir.');
+      return;
+    }
+    const items = desgloseTrabajadores.map((d) => ({
+      trabajador: d.trabajador,
+      calculo: d.resumen,
+    }));
+    const texto = generarTextoWhatsAppSemana(semana, items);
+    await compartirReporteNativo({
+      titulo: `Planilla AgroGámez — ${semana.fecha_inicio}`,
+      texto,
+    });
+  };
+
+  const handleWhatsAppRapido = async () => {
+    if (!semana || desgloseTrabajadores.length === 0) {
+      Alert.alert('Reportes', 'No hay registros de trabajadores en esta semana para compartir.');
+      return;
+    }
+    const items = desgloseTrabajadores.map((d) => ({
+      trabajador: d.trabajador,
+      calculo: d.resumen,
+    }));
+    const texto = generarTextoWhatsAppSemana(semana, items);
+    await compartirPorWhatsApp(texto);
+  };
+
+  return (
                       <View key={p.id} style={styles.tarjetaHistorial}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.historialTitulo}>{info.titulo}</Text>
@@ -716,6 +798,39 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: '#166534',
+  },
+  filaAccionesPlanilla: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  btnCompartirRapido: {
+    flex: 1,
+    backgroundColor: '#2E7D32',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnCompartirRapidoTexto: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  btnWhatsAppRapido: {
+    flex: 1,
+    backgroundColor: '#166534',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnWhatsAppRapidoTexto: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   tarjetaProduccion: {
     backgroundColor: '#FFFFFF',
