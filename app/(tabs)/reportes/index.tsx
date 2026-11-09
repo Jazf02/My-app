@@ -16,7 +16,8 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
+import { ModalExportar } from '@/components/ModalExportar';
 import { BannerEstado } from '@/components/ui/BannerEstado';
 import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
 import {
@@ -52,16 +53,14 @@ interface FilaResumenTrabajador {
   resumen: ResultadoPagoSemanal;
 }
 
-export default function ReportesScreen(): React.JSX.Element {
-  const router = useRouter();
-
-  const [semana, setSemana] = useState<Semana | null>(null);
+export default function ReportesScreen(): React.JSX.Element {  const [semana, setSemana] = useState<Semana | null>(null);
   const [desgloseTrabajadores, setDesgloseTrabajadores] = useState<FilaResumenTrabajador[]>([]);
   const [totalCajasCortadas, setTotalCajasCortadas] = useState(0);
   const [totalCajasEmpacadas, setTotalCajasEmpacadas] = useState(0);
   const [totalDescarte, setTotalDescarte] = useState(0);
   const [periodosCerrados, setPeriodosCerrados] = useState<PeriodoCerrado[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [modalExportarVisible, setModalExportarVisible] = useState(false);
 
   // Datos de la semana anterior para comparativa (MEJORA 8)
   const [datosSemanaAnterior, setDatosSemanaAnterior] = useState<{
@@ -434,11 +433,18 @@ export default function ReportesScreen(): React.JSX.Element {
 
         <Pressable
           style={styles.btnExportar}
-          onPress={() => router.push('/(tabs)/reportes/exportar' as any)}
+          onPress={() => setModalExportarVisible(true)}
         >
           <Text style={styles.btnExportarTexto}>📤 Exportar</Text>
         </Pressable>
       </View>
+
+      {/* Modal de Exportación — se abre directamente sin redireccionamiento */}
+      <ModalExportar
+        visible={modalExportarVisible}
+        onClose={() => setModalExportarVisible(false)}
+        semanaInicial={semana}
+      />
 
       {cargando ? (
         <View style={styles.centro}>

@@ -164,12 +164,14 @@ export default function LoginScreen(): React.JSX.Element {
           <View style={styles.cardPrincipal}>
             {/* Logo Oficial — Badge con forma de app icon */}
             <View style={styles.header}>
-              <Image
-                source={require('@/assets/logo.png')}
-                style={styles.logo}
-                resizeMode="contain"
-                accessibilityLabel="Logo AgroGámez"
-              />
+              <View style={styles.logoWrapper}>
+                <Image
+                  source={require('@/assets/logo.png')}
+                  style={styles.logo}
+                  resizeMode="cover"
+                  accessibilityLabel="Logo AgroGámez"
+                />
+              </View>
               <Text style={styles.titulo}>AgroGámez</Text>
               <Text style={styles.subtitulo}>Sistema Integral Agrícola</Text>
             </View>
@@ -405,9 +407,22 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   logo: {
+    width: 110,
+    height: 110,
+    borderRadius: 0,
+  },
+  logoWrapper: {
     width: 120,
     height: 120,
+    borderRadius: 28,
+    backgroundColor: '#1B5E20',
+    overflow: 'hidden',
     marginBottom: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 6,
   },
   titulo: {
     fontSize: 28,

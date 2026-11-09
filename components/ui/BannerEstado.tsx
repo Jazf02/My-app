@@ -76,11 +76,14 @@ export function BannerEstado({ estado: propEstado }: BannerEstadoProps): React.J
       accessibilityLiveRegion="polite"
       accessibilityLabel={`Estado de sincronización: ${config.label}`}
     >
-      <Image
-        source={require('@/assets/logo.png')}
-        style={styles.logoSmall}
-        accessibilityLabel="Logo AgroGámez"
-      />
+      <View style={styles.logoWrapper}>
+        <Image
+          source={require('@/assets/logo.png')}
+          style={styles.logoSmall}
+          resizeMode="cover"
+          accessibilityLabel="Logo AgroGámez"
+        />
+      </View>
       <Text style={[styles.texto, { color: config.color }]}>
         {config.label}
       </Text>
@@ -98,10 +101,16 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     gap: 8,
   },
+  logoWrapper: {
+    width: 28,
+    height: 28,
+    borderRadius: 7,
+    backgroundColor: '#1B5E20',
+    overflow: 'hidden',
+  },
   logoSmall: {
     width: 28,
     height: 28,
-    borderRadius: 6,
   },
   texto: {
     fontSize: 12,
