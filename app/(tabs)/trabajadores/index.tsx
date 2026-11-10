@@ -308,10 +308,21 @@ export default function TrabajadoresScreen(): React.JSX.Element {
                       </View>
                     )}
                   </View>
+                  <Text style={styles.hintAdelantos}>
+                    💵 Toca para dar adelantos o ver historial →
+                  </Text>
                 </View>
 
                 {/* Acciones Rápidas */}
                 <View style={styles.accionesRapidas}>
+                  <Pressable
+                    style={[styles.btnAccion, styles.btnAccionAdelanto]}
+                    onPress={() => router.push(`/(tabs)/trabajadores/${item.id}` as any)}
+                    hitSlop={8}
+                    accessibilityLabel="Dar adelanto a trabajador"
+                  >
+                    <Text style={styles.btnAccionIcono}>💵</Text>
+                  </Pressable>
                   <Pressable
                     style={styles.btnAccion}
                     onPress={() => abrirModalEditar(item)}
@@ -594,8 +605,17 @@ const styles = StyleSheet.create({
     padding: 6,
     borderRadius: 8,
   },
+  btnAccionAdelanto: {
+    backgroundColor: '#FEF3C7',
+  },
   btnAccionEliminar: {
     backgroundColor: '#FEF2F2',
+  },
+  hintAdelantos: {
+    fontSize: 11,
+    color: '#15803D',
+    fontWeight: '600',
+    marginTop: 3,
   },
   btnEliminarModal: {
     paddingVertical: 10,

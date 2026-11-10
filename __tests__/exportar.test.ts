@@ -188,6 +188,7 @@ describe('lib/exportar.ts — Módulo de Exportación', () => {
         fecha: '2026-10-05',
         presente: 1,
         tarifa_diaria: 250,
+        synced: 0,
       }],
       adelantos: [{
         id: 'ad-1',
@@ -197,6 +198,7 @@ describe('lib/exportar.ts — Módulo de Exportación', () => {
         concepto: 'Almuerzo',
         fecha: '2026-10-06',
         revertido: 0,
+        synced: 0,
       }],
       resumenes: [{ trabajador: mockTrabajador, calculo: mockCalculo }],
       cosecha: { cortadas: 100, empacadas: 90, descarte: 10 },

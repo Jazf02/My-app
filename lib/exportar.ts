@@ -1,5 +1,7 @@
 import { Linking, Share, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system';
+import { jsPDF } from 'jspdf';
+import { esComputadoraWeb } from './dispositivo';
 import { formatearMoneda, formatearFechaCorta, hoyISO } from './fechas';
 import type { ResultadoPagoSemanal } from './calculos';
 import type { ResumenRendimientoLote } from './rendimiento';
@@ -246,10 +248,255 @@ export async function compartirReporteNativo({
 }
 
 /**
- * Abre una ventana con el HTML listo para imprimir o guardar como PDF en cualquier dispositivo.
+ * Interfaz para la generación directa de archivos PDF de planilla
+ */
+export interface InputPDFPeriodo {
+  periodoEtiqueta: string;
+  fechaInicio?: string;
+  fechaFin?: string;
+  resumenes: ItemPlanillaExport[];
+  cosecha?: { cortadas: number; empacadas: number; descarte: number };
+  nombreArchivo?: string;
+}
+
+/**
+ * Genera un archivo PDF vectorial oficial de AgroGámez y lo descarga o comparte.
+ * Utiliza jsPDF sin popups ni llamadas a window.print, garantizando 0% de congelamiento en iOS PWA y Android.
+ */
+export async function generarYGuardarPDFPeriodo(
+  input: InputPDFPeriodo
+): Promise<{ exito: boolean; nombreArchivo: string }> {
+  const { periodoEtiqueta, fechaInicio, fechaFin, resumenes, cosecha } = input;
+  const etiquetaLimpia = (periodoEtiqueta || 'Periodo')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .substring(0, 30);
+  const nombreArchivo = input.nombreArchivo || `AgroGamez_Planilla_${etiquetaLimpia}.pdf`;
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  // Encabezado Superior Corporativo Verde
+  doc.setFillColor(27, 94, 32); // #1B5E20
+  doc.rect(0, 0, pageWidth, 24, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text('AGROGÁMEZ', 14, 11);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.text('Sistema Integral Agrícola — Comprobante Oficial de Nómina', 14, 18);
+
+  let y = 32;
+
+  // Título y Período
+  doc.setTextColor(27, 94, 32);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text(`Comprobante de Planilla: ${periodoEtiqueta}`, 14, y);
+  y += 6;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  const rangoFechas = fechaInicio && fechaFin ? `Rango: ${fechaInicio} al ${fechaFin}   |   ` : '';
+  doc.text(`${rangoFechas}Emisión: ${new Date().toLocaleString()}`, 14, y);
+  y += 8;
+
+  // Si hay datos de cosecha registrados, imprimir resumen de producción
+  if (cosecha && (cosecha.cortadas > 0 || cosecha.empacadas > 0 || cosecha.descarte > 0)) {
+    doc.setFillColor(240, 253, 244); // #F0FDF4
+    doc.setDrawColor(187, 247, 208); // #BBF7D0
+    doc.roundedRect(14, y, pageWidth - 28, 12, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(22, 101, 52);
+    doc.text('Producción Agrícola Registrada:', 18, y + 5);
+
+    doc.setFont('helvetica', 'normal');
+    doc.text(
+      `Cortadas: ${cosecha.cortadas} cajas   |   Empacadas: ${cosecha.empacadas} cajas   |   Descarte: ${cosecha.descarte} cajas`,
+      18,
+      y + 9.5
+    );
+    y += 16;
+  }
+
+  // Encabezado de la Tabla
+  doc.setFillColor(240, 244, 240);
+  doc.rect(14, y, pageWidth - 28, 7, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(27, 94, 32);
+  doc.text('#', 16, y + 5);
+  doc.text('Trabajador', 24, y + 5);
+  doc.text('Días', 85, y + 5);
+  doc.text('Ganado Bruto', 110, y + 5);
+  doc.text('Adelantos', 142, y + 5);
+  doc.text('Neto a Pagar', 172, y + 5);
+  y += 8;
+
+  let granTotalGanado = 0;
+  let granTotalAdelantos = 0;
+  let granTotalAPagar = 0;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(40, 40, 40);
+
+  resumenes.forEach((item, i) => {
+    const { trabajador, calculo } = item;
+    granTotalGanado += calculo.totalGanado;
+    granTotalAdelantos += calculo.totalAdelantos;
+    granTotalAPagar += calculo.totalAPagar;
+
+    if (y > pageHeight - 32) {
+      doc.addPage();
+      // Encabezado de página adicional
+      doc.setFillColor(27, 94, 32);
+      doc.rect(0, 0, pageWidth, 12, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.text(`AGROGÁMEZ — ${periodoEtiqueta} (continuación)`, 14, 8);
+
+      y = 18;
+      doc.setFillColor(240, 244, 240);
+      doc.rect(14, y, pageWidth - 28, 7, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(27, 94, 32);
+      doc.text('#', 16, y + 5);
+      doc.text('Trabajador', 24, y + 5);
+      doc.text('Días', 85, y + 5);
+      doc.text('Ganado Bruto', 110, y + 5);
+      doc.text('Adelantos', 142, y + 5);
+      doc.text('Neto a Pagar', 172, y + 5);
+      y += 8;
+    }
+
+    if (i % 2 === 1) {
+      doc.setFillColor(249, 250, 249);
+      doc.rect(14, y - 4, pageWidth - 28, 6.5, 'F');
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(40, 40, 40);
+    doc.text(String(i + 1), 16, y);
+    doc.text(trabajador.nombre.substring(0, 28), 24, y);
+    doc.text(String(calculo.diasPresentes), 87, y);
+    doc.text(`L. ${calculo.totalGanado.toFixed(2)}`, 110, y);
+
+    doc.setTextColor(198, 40, 40);
+    doc.text(`-L. ${calculo.totalAdelantos.toFixed(2)}`, 142, y);
+
+    doc.setTextColor(27, 94, 32);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`L. ${calculo.totalAPagar.toFixed(2)}`, 172, y);
+
+    y += 6.5;
+  });
+
+  y += 4;
+  if (y > pageHeight - 35) {
+    doc.addPage();
+    y = 20;
+  }
+
+  // Tarjeta de Totales Finales
+  doc.setFillColor(232, 245, 233); // #E8F5E9
+  doc.setDrawColor(165, 214, 167); // #A5D6A7
+  doc.roundedRect(14, y, pageWidth - 28, 20, 3, 3, 'FD');
+
+  doc.setTextColor(27, 94, 32);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.text('RESUMEN DE CIERRE FINANCIERO', 18, y + 6);
+
+  doc.setFontSize(9);
+  doc.setTextColor(50, 50, 50);
+  doc.text(`Total Ganado Bruto: L. ${granTotalGanado.toFixed(2)}`, 18, y + 14);
+
+  doc.setTextColor(198, 40, 40);
+  doc.text(`Total Adelantos: -L. ${granTotalAdelantos.toFixed(2)}`, 78, y + 14);
+
+  doc.setTextColor(27, 94, 32);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text(`NETO A PAGAR: L. ${granTotalAPagar.toFixed(2)}`, 138, y + 14);
+
+  // Pie de página oficial en todas las páginas
+  const totalPages = (doc.internal as any).getNumberOfPages ? (doc.internal as any).getNumberOfPages() : 1;
+  for (let p = 1; p <= totalPages; p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(
+      `AgroGámez — Sistema Integral Agrícola (Offline-First)   •   Página ${p} de ${totalPages}`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    );
+  }
+
+  // Entrega en Entorno Web / PWA iOS / Android
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+      const blob = doc.output('blob');
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nombreArchivo;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        try {
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+        } catch {}
+      }, 10000);
+      return { exito: true, nombreArchivo };
+    }
+  }
+
+  // Entorno Móvil Nativo (APK Android)
+  const docDir = (FileSystem as any).documentDirectory || '';
+  const rutaCompleta = `${docDir}${nombreArchivo}`;
+  if (docDir) {
+    const base64 = doc.output('datauristring').split(',')[1];
+    await FileSystem.writeAsStringAsync(rutaCompleta, base64, {
+      encoding: (FileSystem as any).EncodingType?.Base64 || 'base64',
+    });
+    try {
+      await Share.share({
+        title: input.periodoEtiqueta || 'Planilla AgroGámez PDF',
+        url: rutaCompleta,
+      });
+    } catch {}
+  }
+  return { exito: true, nombreArchivo };
+}
+
+/**
+ * Abre una ventana con el HTML listo para imprimir únicamente en computadoras de escritorio.
+ * En iPhone / iOS PWA o dispositivos móviles, está estrictamente bloqueado para evitar
+ * el deadlock de WebKit que congela la app.
  */
 export function imprimirReporteHTML(html: string): boolean {
   if (typeof window === 'undefined' || typeof document === 'undefined') return false;
+
+  // En teléfonos, iPads y PWA instalada, window.print() CONGELA el thread de WebKit.
+  // Solo se permite imprimir desde computadoras de escritorio / laptops.
+  if (!esComputadoraWeb()) {
+    console.warn('[Exportar] Impresión de navegador omitida en móvil para prevenir bloqueo de WebKit.');
+    return false;
+  }
+
   try {
     const ventana = window.open('', '_blank');
     if (!ventana) return false;

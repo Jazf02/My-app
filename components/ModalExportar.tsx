@@ -29,6 +29,7 @@ import {
   compartirReporteNativo,
   copiarAlPortapapeles,
   imprimirReporteHTML,
+  generarYGuardarPDFPeriodo,
   generarTextoWhatsAppPeriodo,
   generarHTMLPlanillaPeriodo,
 } from '@/lib/exportar';
@@ -80,6 +81,8 @@ export function ModalExportar({ visible, onClose, semanaInicial }: Props): React
   const [datosExport, setDatosExport] = useState<ResultadoExportacionPeriodo | null>(null);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
+  const [generandoPDF, setGenerandoPDF] = useState(false);
+  const [pdfGenerado, setPdfGenerado] = useState(false);
   const [archivoGenerado, setArchivoGenerado] = useState<string | null>(null);
   const [copiadoExito, setCopiadoExito] = useState(false);
 
@@ -296,7 +299,29 @@ export function ModalExportar({ visible, onClose, semanaInicial }: Props): React
     }
   };
 
-  const handleImprimirPDF = () => {
+  const handleDescargarPDF = async () => {
+    if (!datosExport || generandoPDF) return;
+    try {
+      setGenerandoPDF(true);
+      const res = await generarYGuardarPDFPeriodo({
+        periodoEtiqueta: datosExport.periodoEtiqueta,
+        fechaInicio: datosExport.fechaInicio,
+        fechaFin: datosExport.fechaFin,
+        resumenes: datosExport.resumenes,
+        cosecha: datosExport.cosecha,
+      });
+      if (res.exito) {
+        setPdfGenerado(true);
+        setTimeout(() => setPdfGenerado(false), 5000);
+      }
+    } catch (err) {
+      Alert.alert('Error PDF', err instanceof Error ? err.message : 'No se pudo generar el archivo PDF.');
+    } finally {
+      setGenerandoPDF(false);
+    }
+  };
+
+  const handleImprimirPC = () => {
     if (!datosExport) return;
     const html = generarHTMLPlanillaPeriodo({
       periodoEtiqueta: datosExport.periodoEtiqueta,
@@ -307,7 +332,8 @@ export function ModalExportar({ visible, onClose, semanaInicial }: Props): React
     });
     const exito = imprimirReporteHTML(html);
     if (!exito) {
-      Alert.alert('Impresión', 'La función de impresión no está disponible en este visor.');
+      // Si está en móvil, automáticamente descarga el PDF en vez de colgar la app
+      handleDescargarPDF();
     }
   };
 
@@ -578,6 +604,17 @@ export function ModalExportar({ visible, onClose, semanaInicial }: Props): React
               )}
             </Pressable>
 
+            {/* Botón Principal 2: Descargar PDF Oficial */}
+            <Pressable
+              style={[styles.btnDescargarCSV, { backgroundColor: '#1B5E20', marginTop: 10 }]}
+              onPress={handleDescargarPDF}
+              disabled={generandoPDF || cargando}
+            >
+              <Text style={styles.btnDescargarCSVTexto}>
+                {generandoPDF ? '⏳ Generando Documento PDF...' : '📄 Descargar Reporte en PDF'}
+              </Text>
+            </Pressable>
+
             {/* Botón Menú Compartir Nativo */}
             <Pressable
               style={styles.btnCompartirNativo}
@@ -611,11 +648,19 @@ export function ModalExportar({ visible, onClose, semanaInicial }: Props): React
 
               <Pressable
                 style={[styles.btnSecundario, { flex: 1 }]}
-                onPress={handleImprimirPDF}
+                onPress={handleImprimirPC}
               >
-                <Text style={styles.btnSecundarioTexto}>🖨️ Imprimir / PDF</Text>
+                <Text style={styles.btnSecundarioTexto}>🖨️ Imprimir (PC)</Text>
               </Pressable>
             </View>
+
+            {pdfGenerado && (
+              <View style={[styles.bannerExito, { backgroundColor: '#E8F5E9', borderColor: '#81C784' }]}>
+                <Text style={[styles.bannerExitoTexto, { color: '#1B5E20' }]}>
+                  ✓ ¡Documento PDF oficial generado y descargado con éxito!
+                </Text>
+              </View>
+            )}
 
             {copiadoExito && (
               <View style={styles.bannerExito}>

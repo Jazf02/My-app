@@ -30,6 +30,7 @@ import {
   obtenerOCrearSemanaParaFecha,
   obtenerAsistenciaSemanal,
   marcarAsistencia,
+  registrarAdelanto,
 } from '@/database/asistencia';
 import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
 import {
@@ -63,8 +64,53 @@ export default function HoyScreen(): React.JSX.Element {
   const [trabajadorSeleccionado, setTrabajadorSeleccionado] = useState<Trabajador | null>(null);
   const [tarifaOverrideInput, setTarifaOverrideInput] = useState('');
 
+  // Modal de Adelanto Rápido en Asistencia
+  const [modalAdelantoVisible, setModalAdelantoVisible] = useState(false);
+  const [trabajadorAdelanto, setTrabajadorAdelanto] = useState<Trabajador | null>(null);
+  const [montoAdelantoInput, setMontoAdelantoInput] = useState('');
+  const [conceptoAdelantoInput, setConceptoAdelantoInput] = useState('Adelanto');
+  const [fechaAdelantoInput, setFechaAdelantoInput] = useState(hoyISO());
+  const [guardandoAdelanto, setGuardandoAdelanto] = useState(false);
+
   // Buscador de trabajadores en Asistencia
   const [busqueda, setBusqueda] = useState<string>('');
+
+  const abrirModalAdelanto = (t: Trabajador) => {
+    setTrabajadorAdelanto(t);
+    setMontoAdelantoInput('');
+    setConceptoAdelantoInput('Adelanto');
+    setFechaAdelantoInput(fechaSeleccionada || hoyISO());
+    setModalAdelantoVisible(true);
+  };
+
+  const handleGuardarAdelanto = async () => {
+    if (!trabajadorAdelanto || !semana) return;
+    const monto = parseFloat(montoAdelantoInput.replace(',', '.'));
+    if (isNaN(monto) || monto <= 0) {
+      Alert.alert('Monto inválido', 'Por favor ingresa un monto válido mayor a 0 en Lempiras.');
+      return;
+    }
+    try {
+      setGuardandoAdelanto(true);
+      await registrarAdelanto({
+        semana_id: semana.id,
+        trabajador_id: trabajadorAdelanto.id,
+        monto,
+        concepto: conceptoAdelantoInput.trim() || 'Adelanto',
+        fecha: fechaAdelantoInput || fechaSeleccionada || hoyISO(),
+      });
+      setModalAdelantoVisible(false);
+      mostrarUndo(
+        `✓ Adelanto de ${formatearMoneda(monto)} registrado para ${trabajadorAdelanto.nombre}`,
+        async () => {}
+      );
+      ejecutarSincronizacion().catch(() => {});
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo guardar el adelanto.');
+    } finally {
+      setGuardandoAdelanto(false);
+    }
+  };
 
   const mostrarUndo = (mensaje: string, accionRevertir: () => Promise<void>) => {
     if (toastTimeout) clearTimeout(toastTimeout);
@@ -595,16 +641,27 @@ export default function HoyScreen(): React.JSX.Element {
                   <Text style={styles.nombreTrabajador} numberOfLines={1}>
                     {item.nombre}
                   </Text>
-                  <Pressable
-                    style={styles.filaTarifa}
-                    onPress={() => abrirModalTarifa(item)}
-                    hitSlop={6}
-                  >
-                    <Text style={styles.tarifaTexto}>
-                      {formatearMoneda(tarifaAplicada)}
-                    </Text>
-                    <Text style={styles.tarifaLapiz}>✏️</Text>
-                  </Pressable>
+                  <View style={styles.filaTarifaYAdelanto}>
+                    <Pressable
+                      style={styles.filaTarifa}
+                      onPress={() => abrirModalTarifa(item)}
+                      hitSlop={6}
+                    >
+                      <Text style={styles.tarifaTexto}>
+                        {formatearMoneda(tarifaAplicada)}
+                      </Text>
+                      <Text style={styles.tarifaLapiz}>✏️</Text>
+                    </Pressable>
+
+                    <Pressable
+                      style={styles.btnAdelantoChip}
+                      onPress={() => abrirModalAdelanto(item)}
+                      hitSlop={6}
+                      accessibilityLabel={`Dar adelanto a ${item.nombre}`}
+                    >
+                      <Text style={styles.btnAdelantoChipTexto}>💵 Adelanto</Text>
+                    </Pressable>
+                  </View>
                 </View>
 
                 {/* Botón táctil grande de Presente/Ausente */}
@@ -716,6 +773,87 @@ export default function HoyScreen(): React.JSX.Element {
                 onPress={guardarTarifaOverride}
               >
                 <Text style={styles.btnGuardarTexto}>Guardar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal para Registrar Adelanto Rápido en Asistencia */}
+      <Modal
+        visible={modalAdelantoVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setModalAdelantoVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContenido}>
+            <Text style={styles.modalTitulo}>💵 Registrar Adelanto</Text>
+            <Text style={styles.modalSubtitulo}>
+              Para {trabajadorAdelanto?.nombre} {semana ? `— Semana ${formatearFechaCorta(semana.fecha_inicio)} al ${formatearFechaCorta(semana.fecha_fin)}` : ''}
+            </Text>
+
+            <Text style={styles.labelCampoModal}>Monto en Lempiras (L.)</Text>
+            <TextInput
+              style={styles.inputModal}
+              value={montoAdelantoInput}
+              onChangeText={setMontoAdelantoInput}
+              keyboardType="numeric"
+              placeholder="Ej. 200"
+              placeholderTextColor="#9CA3AF"
+              autoFocus
+            />
+
+            <Text style={styles.labelCampoModal}>Fecha del adelanto (YYYY-MM-DD)</Text>
+            <TextInput
+              style={styles.inputModal}
+              value={fechaAdelantoInput}
+              onChangeText={setFechaAdelantoInput}
+              placeholder="2026-11-09"
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <Text style={styles.labelCampoModal}>Nota / Concepto (opcional)</Text>
+            <TextInput
+              style={styles.inputModal}
+              value={conceptoAdelantoInput}
+              onChangeText={setConceptoAdelantoInput}
+              placeholder="Ej. Préstamo personal, medicina..."
+              placeholderTextColor="#9CA3AF"
+            />
+
+            <Pressable
+              style={styles.btnVerHistorialTrabajador}
+              onPress={() => {
+                if (trabajadorAdelanto) {
+                  setModalAdelantoVisible(false);
+                  router.push(`/(tabs)/trabajadores/${trabajadorAdelanto.id}` as any);
+                }
+              }}
+            >
+              <Text style={styles.btnVerHistorialTrabajadorTexto}>
+                📋 Ver todos los adelantos de este trabajador →
+              </Text>
+            </Pressable>
+
+            <View style={styles.modalBotones}>
+              <Pressable
+                style={[styles.btnModal, styles.btnCancelar]}
+                onPress={() => setModalAdelantoVisible(false)}
+                disabled={guardandoAdelanto}
+              >
+                <Text style={styles.btnCancelarTexto}>Cancelar</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.btnModal, styles.btnGuardar]}
+                onPress={handleGuardarAdelanto}
+                disabled={guardandoAdelanto}
+              >
+                {guardandoAdelanto ? (
+                  <ActivityIndicator color="#FFFFFF" size="small" />
+                ) : (
+                  <Text style={styles.btnGuardarTexto}>Guardar Adelanto</Text>
+                )}
               </Pressable>
             </View>
           </View>
@@ -982,6 +1120,42 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  filaTarifaYAdelanto: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 2,
+  },
+  btnAdelantoChip: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  btnAdelantoChipTexto: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  labelCampoModal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  btnVerHistorialTrabajador: {
+    paddingVertical: 8,
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  btnVerHistorialTrabajadorTexto: {
+    fontSize: 13,
+    color: '#15803D',
+    fontWeight: '600',
   },
   tarifaTexto: {
     fontSize: 13,
