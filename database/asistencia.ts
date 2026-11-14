@@ -259,9 +259,23 @@ export async function obtenerAsistenciaSemanal(
 export async function registrarAdelanto(input: CrearAdelantoDTO): Promise<Adelanto> {
   if (Platform.OS === 'web') return webRegistrarAdelanto(input);
   const db = await getDB();
-  const id = generarUUID();
   const fecha = input.fecha || hoyISO();
 
+  // Verificar si ya existe un adelanto activo en esta misma fecha
+  const existente = await db.getFirstAsync<Adelanto>(
+    `SELECT * FROM adelantos WHERE semana_id = ? AND trabajador_id = ? AND fecha = ? AND revertido = 0;`,
+    [input.semana_id, input.trabajador_id, fecha]
+  );
+
+  if (existente) {
+    await db.runAsync(
+      `UPDATE adelantos SET monto = ?, concepto = ?, synced = 0 WHERE id = ?;`,
+      [input.monto, input.concepto || existente.concepto, existente.id]
+    );
+    return (await db.getFirstAsync<Adelanto>(`SELECT * FROM adelantos WHERE id = ?;`, [existente.id]))!;
+  }
+
+  const id = generarUUID();
   await db.runAsync(
     `INSERT INTO adelantos (id, semana_id, trabajador_id, monto, concepto, fecha, synced)
      VALUES (?, ?, ?, ?, ?, ?, 0);`,

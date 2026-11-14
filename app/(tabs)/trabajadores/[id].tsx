@@ -69,6 +69,10 @@ export default function TrabajadorDetalleScreen(): React.JSX.Element {
 
   const handleGuardarAdelanto = async () => {
     if (!trabajador || !semana) return;
+    if (semana.estado !== 'abierta') {
+      setErrorAdelanto("Esta semana está cerrada. No se pueden registrar ni modificar adelantos.");
+      return;
+    }
     const monto = parseFloat(montoAdelanto.replace(",", "."));
     if (isNaN(monto) || monto <= 0) { setErrorAdelanto("Ingresa un monto valido mayor a 0."); return; }
     if (!fechaAdelantoInput) { setErrorAdelanto("La fecha es obligatoria."); return; }
@@ -82,6 +86,13 @@ export default function TrabajadorDetalleScreen(): React.JSX.Element {
   };
 
   const handleRevertirAdelanto = (adelantoId: string, monto: number) => {
+    if (!semana || semana.estado !== 'abierta') {
+      Alert.alert(
+        "Semana Cerrada",
+        "Esta semana está cerrada o pagada. Los adelantos no pueden revertirse ni modificarse."
+      );
+      return;
+    }
     Alert.alert(
       "Revertir Adelanto",
       `¿Deseas revertir este adelanto de ${formatearMoneda(monto)}? Ya no se restará del total a pagar.`,
@@ -184,7 +195,23 @@ export default function TrabajadorDetalleScreen(): React.JSX.Element {
         <View style={s.seccion}>
           <View style={s.filaHeader}>
             <Text style={s.seccionTitulo}>Adelantos Registrados</Text>
-            <Pressable style={s.btnAdelanto} onPress={() => { setErrorAdelanto(null); setMontoAdelanto(""); setConceptoAdelanto(""); setFechaAdelantoInput(hoyISO()); setModalAdelantoVisible(true); }}>
+            <Pressable
+              style={[s.btnAdelanto, semana?.estado !== 'abierta' && { opacity: 0.5 }]}
+              onPress={() => {
+                if (semana?.estado !== 'abierta') {
+                  Alert.alert(
+                    "Semana Cerrada",
+                    "Esta semana está cerrada o pagada. No se pueden registrar nuevos adelantos."
+                  );
+                  return;
+                }
+                setErrorAdelanto(null);
+                setMontoAdelanto("");
+                setConceptoAdelanto("");
+                setFechaAdelantoInput(hoyISO());
+                setModalAdelantoVisible(true);
+              }}
+            >
               <Text style={s.btnAdelantoTexto}>+ Adelanto</Text>
             </Pressable>
           </View>

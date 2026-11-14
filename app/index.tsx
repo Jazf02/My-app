@@ -3,18 +3,35 @@
 // RouteGuard en _layout.tsx decide a dónde navegar.
 // ═══════════════════════════════════════════════════════════
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/auth/useAuth';
 
-/**
- * Esta pantalla se muestra brevemente mientras el AuthProvider
- * termina de verificar si existe un PIN configurado.
- * RouteGuard en _layout.tsx redirige automáticamente a:
- *   - /(auth)/primer-uso  → si es la primera vez (sin PIN)
- *   - /(auth)/login       → si ya existe un PIN
- *   - /(tabs)/hoy         → si la sesión ya estaba activa
- */
 export default function Index(): React.JSX.Element {
+  const router = useRouter();
+  const { isLoggedIn, isLoading } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading) {
+      if (isLoggedIn) {
+        router.replace('/(tabs)/hoy');
+      } else {
+        router.replace('/(auth)/login');
+      }
+    }
+  }, [isLoading, isLoggedIn, router]);
+
+  // Fallback de seguridad: si tras 3 segundos sigue en index, forzar navegación
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        router.replace('/(tabs)/hoy');
+      } catch {}
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [router]);
+
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color="#2E7D32" />

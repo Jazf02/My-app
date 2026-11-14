@@ -313,13 +313,32 @@ export async function webObtenerAsistenciaSemanal(
 
 export async function webRegistrarAdelanto(input: CrearAdelantoDTO): Promise<Adelanto> {
   const list = getList<Adelanto>('adelantos');
+  const fecha = input.fecha || hoyISO();
+
+  // Si ya existe un adelanto activo para este trabajador en esta fecha de esta semana, actualizar monto y concepto
+  const indexExistente = list.findIndex(
+    (a) =>
+      a.semana_id === input.semana_id &&
+      a.trabajador_id === input.trabajador_id &&
+      a.fecha === fecha &&
+      a.revertido !== 1
+  );
+
+  if (indexExistente >= 0) {
+    list[indexExistente].monto = input.monto;
+    if (input.concepto) list[indexExistente].concepto = input.concepto;
+    list[indexExistente].synced = 0;
+    saveList('adelantos', list);
+    return list[indexExistente];
+  }
+
   const nuevo: Adelanto = {
     id: uuid(),
     semana_id: input.semana_id,
     trabajador_id: input.trabajador_id,
     monto: input.monto,
     concepto: input.concepto || '',
-    fecha: input.fecha || hoyISO(),
+    fecha,
     revertido: 0,
     synced: 0,
   };

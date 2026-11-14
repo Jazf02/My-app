@@ -31,6 +31,7 @@ import {
   obtenerAsistenciaSemanal,
   marcarAsistencia,
   registrarAdelanto,
+  obtenerAdelantosSemana,
 } from '@/database/asistencia';
 import { suscribirSyncCompletado, ejecutarSincronizacion } from '@/sync/syncEngine';
 import {
@@ -40,7 +41,7 @@ import {
   formatearMoneda,
   lunesDeSemana,
 } from '@/lib/fechas';
-import type { Trabajador, Semana, DiaTrabajado } from '@/types/domain';
+import type { Trabajador, Semana, DiaTrabajado, Adelanto } from '@/types/domain';
 
 export default function HoyScreen(): React.JSX.Element {
   const router = useRouter();
@@ -70,21 +71,60 @@ export default function HoyScreen(): React.JSX.Element {
   const [montoAdelantoInput, setMontoAdelantoInput] = useState('');
   const [conceptoAdelantoInput, setConceptoAdelantoInput] = useState('Adelanto');
   const [fechaAdelantoInput, setFechaAdelantoInput] = useState(hoyISO());
+  const [adelantoExistente, setAdelantoExistente] = useState<Adelanto | null>(null);
   const [guardandoAdelanto, setGuardandoAdelanto] = useState(false);
 
   // Buscador de trabajadores en Asistencia
   const [busqueda, setBusqueda] = useState<string>('');
 
-  const abrirModalAdelanto = (t: Trabajador) => {
+  const sumarAlMonto = (extra: number) => {
+    const actual = parseFloat(montoAdelantoInput.replace(',', '.')) || 0;
+    setMontoAdelantoInput(String(actual + extra));
+  };
+
+  const abrirModalAdelanto = async (t: Trabajador) => {
+    if (!semana) return;
+
+    // Regla 1: Bloquear si la semana está cerrada o pagada
+    if (semana.estado !== 'abierta') {
+      Alert.alert(
+        'Semana Cerrada',
+        `Esta semana (${formatearFechaCorta(semana.fecha_inicio)} al ${formatearFechaCorta(semana.fecha_fin)}) está cerrada (${semana.estado}). Los pagos y adelantos están bloqueados para modificaciones.`
+      );
+      return;
+    }
+
     setTrabajadorAdelanto(t);
-    setMontoAdelantoInput('');
-    setConceptoAdelantoInput('Adelanto');
-    setFechaAdelantoInput(fechaSeleccionada || hoyISO());
+    const fecha = fechaSeleccionada || hoyISO();
+    setFechaAdelantoInput(fecha);
+
+    // Regla 2: Comprobar si ya existe un adelanto activo en esta fecha
+    try {
+      const lista = await obtenerAdelantosSemana(semana.id, t.id);
+      const existente = lista.find((a) => a.fecha === fecha && a.revertido !== 1);
+      if (existente) {
+        setAdelantoExistente(existente);
+        setMontoAdelantoInput(String(existente.monto));
+        setConceptoAdelantoInput(existente.concepto || 'Adelanto');
+      } else {
+        setAdelantoExistente(null);
+        setMontoAdelantoInput('');
+        setConceptoAdelantoInput('Adelanto');
+      }
+    } catch {
+      setAdelantoExistente(null);
+      setMontoAdelantoInput('');
+      setConceptoAdelantoInput('Adelanto');
+    }
     setModalAdelantoVisible(true);
   };
 
   const handleGuardarAdelanto = async () => {
     if (!trabajadorAdelanto || !semana) return;
+    if (semana.estado !== 'abierta') {
+      Alert.alert('Semana Cerrada', 'No se pueden registrar adelantos en una semana cerrada.');
+      return;
+    }
     const monto = parseFloat(montoAdelantoInput.replace(',', '.'));
     if (isNaN(monto) || monto <= 0) {
       Alert.alert('Monto inválido', 'Por favor ingresa un monto válido mayor a 0 en Lempiras.');
@@ -101,7 +141,9 @@ export default function HoyScreen(): React.JSX.Element {
       });
       setModalAdelantoVisible(false);
       mostrarUndo(
-        `✓ Adelanto de ${formatearMoneda(monto)} registrado para ${trabajadorAdelanto.nombre}`,
+        adelantoExistente
+          ? `✓ Adelanto actualizado a ${formatearMoneda(monto)} para ${trabajadorAdelanto.nombre}`
+          : `✓ Adelanto de ${formatearMoneda(monto)} registrado para ${trabajadorAdelanto.nombre}`,
         async () => {}
       );
       ejecutarSincronizacion().catch(() => {});
@@ -130,8 +172,12 @@ export default function HoyScreen(): React.JSX.Element {
     }
   };
 
-  // Cargar datos para la fecha seleccionada
+  // Cargar datos para la fecha seleccionada con temporizador de protección
   const cargarDatos = useCallback(async (fecha: string) => {
+    const timerSafety = setTimeout(() => {
+      setCargando(false);
+    }, 4000);
+
     try {
       setCargando(true);
       const [todosTrabajadores, semanaObj] = await Promise.all([
@@ -147,6 +193,7 @@ export default function HoyScreen(): React.JSX.Element {
     } catch (err) {
       console.error('[Hoy] Error al cargar datos:', err);
     } finally {
+      clearTimeout(timerSafety);
       setCargando(false);
     }
   }, []);
@@ -788,12 +835,36 @@ export default function HoyScreen(): React.JSX.Element {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContenido}>
-            <Text style={styles.modalTitulo}>💵 Registrar Adelanto</Text>
+            <Text style={styles.modalTitulo}>
+              {adelantoExistente ? '✏️ Modificar / Acumular Adelanto' : '💵 Registrar Adelanto'}
+            </Text>
             <Text style={styles.modalSubtitulo}>
               Para {trabajadorAdelanto?.nombre} {semana ? `— Semana ${formatearFechaCorta(semana.fecha_inicio)} al ${formatearFechaCorta(semana.fecha_fin)}` : ''}
             </Text>
 
-            <Text style={styles.labelCampoModal}>Monto en Lempiras (L.)</Text>
+            {adelantoExistente && (
+              <View style={styles.bannerAdelantoExistente}>
+                <Text style={styles.bannerAdelantoExistenteTitulo}>
+                  ⚠️ Ya existe un adelanto registrado hoy de {formatearMoneda(adelantoExistente.monto)}
+                </Text>
+                <Text style={styles.bannerAdelantoExistenteTexto}>
+                  Para acumular dinero adicional, puedes sumarlo directamente con estos botones:
+                </Text>
+                <View style={styles.filaAtajosAdelanto}>
+                  <Pressable style={styles.btnAtajoAdelanto} onPress={() => sumarAlMonto(100)}>
+                    <Text style={styles.btnAtajoAdelantoTexto}>+ L. 100</Text>
+                  </Pressable>
+                  <Pressable style={styles.btnAtajoAdelanto} onPress={() => sumarAlMonto(200)}>
+                    <Text style={styles.btnAtajoAdelantoTexto}>+ L. 200</Text>
+                  </Pressable>
+                  <Pressable style={styles.btnAtajoAdelanto} onPress={() => sumarAlMonto(500)}>
+                    <Text style={styles.btnAtajoAdelantoTexto}>+ L. 500</Text>
+                  </Pressable>
+                </View>
+              </View>
+            )}
+
+            <Text style={styles.labelCampoModal}>Monto total acumulado (L.)</Text>
             <TextInput
               style={styles.inputModal}
               value={montoAdelantoInput}
@@ -852,7 +923,9 @@ export default function HoyScreen(): React.JSX.Element {
                 {guardandoAdelanto ? (
                   <ActivityIndicator color="#FFFFFF" size="small" />
                 ) : (
-                  <Text style={styles.btnGuardarTexto}>Guardar Adelanto</Text>
+                  <Text style={styles.btnGuardarTexto}>
+                    {adelantoExistente ? 'Actualizar Adelanto' : 'Guardar Adelanto'}
+                  </Text>
                 )}
               </Pressable>
             </View>
@@ -1146,6 +1219,43 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginTop: 8,
     marginBottom: 2,
+  },
+  bannerAdelantoExistente: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+    borderRadius: 12,
+    padding: 12,
+    marginVertical: 4,
+    gap: 6,
+  },
+  bannerAdelantoExistenteTitulo: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  bannerAdelantoExistenteTexto: {
+    fontSize: 12,
+    color: '#78350F',
+    lineHeight: 16,
+  },
+  filaAtajosAdelanto: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 2,
+  },
+  btnAtajoAdelanto: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+  },
+  btnAtajoAdelantoTexto: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#B45309',
   },
   btnVerHistorialTrabajador: {
     paddingVertical: 8,

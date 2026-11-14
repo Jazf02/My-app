@@ -250,4 +250,40 @@ describe('QA — 10 Mejoras de AgroGámez', () => {
     expect(csv).toContain('=== 6. TOTALES GENERALES ===');
     expect(csv).toContain('650.00,200.00,450.00');
   });
+
+  // ════════════════════════════════════════════════════════════
+  // AUDITORÍA: Consolidación de Adelantos y Bloqueo en Semana Cerrada
+  // ════════════════════════════════════════════════════════════
+  test('Consolidación de adelanto en el mismo día actualiza el monto existente', async () => {
+    const { webRegistrarAdelanto, webObtenerAdelantosSemana } = require('../database/webStorage');
+    const semanaId = 'sem-qa-test-1';
+    const trabajadorId = 't-qa-test-1';
+    const fecha = '2026-11-09';
+
+    // 1. Registrar primer adelanto de 500
+    const primerAdelanto = await webRegistrarAdelanto({
+      semana_id: semanaId,
+      trabajador_id: trabajadorId,
+      monto: 500,
+      concepto: 'Adelanto mañana',
+      fecha,
+    });
+    expect(primerAdelanto.monto).toBe(500);
+
+    // 2. Si pide 200 más ese mismo día, se actualiza a 700 (acumulado)
+    const adelantoActualizado = await webRegistrarAdelanto({
+      semana_id: semanaId,
+      trabajador_id: trabajadorId,
+      monto: 700,
+      concepto: 'Adelanto acumulado 500 + 200',
+      fecha,
+    });
+    expect(adelantoActualizado.monto).toBe(700);
+
+    // 3. Verificar que no se duplicó el registro
+    const lista = await webObtenerAdelantosSemana(semanaId, trabajadorId);
+    const adelantosDelDia = lista.filter((a: Adelanto) => a.fecha === fecha && a.revertido !== 1);
+    expect(adelantosDelDia.length).toBe(1);
+    expect(adelantosDelDia[0].monto).toBe(700);
+  });
 });

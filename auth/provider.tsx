@@ -32,7 +32,11 @@ export function AuthProvider({ children }: AuthProviderProps): React.JSX.Element
 
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<{ data: { session: null } }>((resolve) =>
+          setTimeout(() => resolve({ data: { session: null } }), 3000)
+        );
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
         if (mounted && session?.user) {
           setUserEmail(session.user.email || null);
           setIsLoggedIn(true);
